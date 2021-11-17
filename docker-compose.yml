@@ -1,0 +1,9 @@
+version: '3'
+services:
+  openapi2soapui:
+    build:
+      context: .
+      args:
+        JAR_FILE: "target/openapi2soapui.jar"
+    ports:
+      - "8080:8080"

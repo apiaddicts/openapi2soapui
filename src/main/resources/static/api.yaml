@@ -1,0 +1,642 @@
+openapi: 3.0.1
+info:
+  title: Swagger to SoapUI
+  description: |
+    API to generate a SoapUI project from an OpenAPI Specification (fka Swagger Specification)
+
+    Given an OpenAPI Specification, either v2 or v3, a SoapUI project is generated with a __request__ and a __test suite__ for each resource operation.
+
+    The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
+  version: 1.0.0
+servers:
+- url: /api-openapi-to-soapui/v1
+tags:
+- name: SoapUI
+  description: Swagger to SoapUI conversion
+paths:
+  /soap-ui-projects:
+    post:
+      tags:
+        - SoapUI
+      summary: SoapUI project creation from an OpenAPI Specification
+      description: |
+        The base-64 encoded OpenAPI Spec received as part of the request body is decoded.
+
+        With given OpenAPI Spec, either v2 or v3:
+
+        - A __SoapUI Project__ is generated
+        - A __REST Service__ is created within the __SoapUI Project__.
+        - A __Resource__ is added to the __REST Service__ for each path defined in OpenAPI Spec
+        - A __Method__ is added to its __Resource__ 
+        - A __Request__ is generated for each __Method__.
+        - A __Test Suite__ is created for each __Method__ within the __SoapUI Project__.
+        - A __Test Case__ is added to the __Test Suite__ for each test case name defined in the property testCaseNames of request body
+        - A __Test Step__ is generated with a __Request__ and added to the __Test Case__
+        
+        Nomenclature used:
+        - SoapUI Project: {apiName}\_{apiVersion}
+        - REST Service: {apiName}
+        - Resource: {path}
+        - Method: {httpMethodInUppercase}
+        - Request: {defaultRequestName}
+        - Test Suite: {path}\_{httpMethodInUppercase}\_TestSuite
+        - Test Case (Default): Success\_TestCase
+        - Test Case: {testCaseName}\_TestCase
+        - Test Step: Execution\_TestStep
+
+        The variables are obtained from:
+        - apiName: property apiName of request body
+        - apiVersion: version defined in the 'info' section of the OpenAPI Spec
+        - path: each path defined in the OpenAPI Spec
+        - httpMethodInUppercase: each HTTP methods of paths defined in OpenAPI Spec
+        - defaultRequestName: Request 1
+        - testCaseName: each test case name defined in the property testCaseNames of request body 
+
+        To generate __oAuth 2.0 Profiles__ in the __SoapUI Project__, a list of elements with the name "oAuth2Profiles" must be defined as part of the request body with the configuration of each profile.
+
+        Additionally, it is possible to add custom headers to each of the requests, defining a list of key-value elements with the name "headers" as part of the request body, where key indicates the name of the header and value the value of the header.
+
+        The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.          
+      requestBody:
+        description: |
+          Information necessary for the generation of the SoapUI Project.
+
+          Properties
+          - apiName: Name of the API
+          - oAuth2Profiles: List with the configurations of the oAuth 2.0 authentication profiles
+          - openApiSpec: Base-64 encoded OpenAPI Spec
+          - testCaseNames: List with the names of the test cases
+          - headers: List of custom headers
+        content:
+          aplication/json:
+            schema:
+              $ref: '#/components/schemas/ProyectSoapUI'
+        required: true
+      responses:
+        201:
+          description: Created
+          content:
+            application/xml:
+              schema:
+                type: object
+                properties:
+                  soapui-project:
+                    type: object
+              example: |
+                <?xml version="1.0" encoding="UTF-8"?>
+                <con:soapui-project id="e5e521f1-bf57-4949-ae35-c0c6cf652ccb" activeEnvironment="Default" name="Users_0.1.9" soapui-version="5.6.0" xmlns:con="http://eviware.com/soapui/config">
+                    <con:settings/>
+                    <con:interface xsi:type="con:RestService" id="cde9006c-8424-4069-b19d-0c812ee1cae2" wadlVersion="http://wadl.dev.java.net/2009/02" name="Users" type="rest" basePath="/v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                        <con:description>Optional multiline or single-line description in [CommonMark](http://commonmark.org/help/) or HTML.</con:description>
+                        <con:settings/>
+                        <con:definitionCache/>
+                        <con:endpoints>
+                            <con:endpoint>http://api.example.com</con:endpoint>
+                            <con:endpoint>http://staging-api.example.com</con:endpoint>
+                        </con:endpoints>
+                    </con:interface>
+                    <con:properties/>
+                    <con:wssContainer/>
+                    <con:oAuth2ProfileContainer>
+                        <con:oAuth2Profile>
+                            <con:name>dev</con:name>
+                            <con:accessToken>Ty3vo6cGkJu6DoK1GZUSNcgOj5rQ</con:accessToken>
+                            <con:accessTokenPosition>HEADER</con:accessTokenPosition>
+                            <con:refreshAccessTokenMethod>AUTOMATIC</con:refreshAccessTokenMethod>
+                            <con:accessTokenStatus>UNKNOWN</con:accessTokenStatus>
+                            <con:accessTokenStartingStatus>ENTERED_MANUALLY</con:accessTokenStartingStatus>
+                        </con:oAuth2Profile>
+                        <con:oAuth2Profile>
+                            <con:name>dev</con:name>
+                            <con:clientID>a2354akdjfasdkfj</con:clientID>
+                            <con:clientSecret>a2354akdjfasdkfj</con:clientSecret>
+                            <con:authorizationURI>http://api.cloudappi.net/auth</con:authorizationURI>
+                            <con:accessTokenURI>http://api.cloudappi.net/token</con:accessTokenURI>
+                            <con:redirectURI>http://api.cloudappi.net/callback</con:redirectURI>
+                            <con:accessTokenPosition>HEADER</con:accessTokenPosition>
+                            <con:refreshAccessTokenMethod>AUTOMATIC</con:refreshAccessTokenMethod>
+                            <con:scope>openid, secret</con:scope>
+                        </con:oAuth2Profile>
+                    </con:oAuth2ProfileContainer>
+                    <con:oAuth1ProfileContainer/>
+                </con:soapui-project>
+        400:
+          description: |
+            Bad Request
+
+            List of error codes
+
+            - 1000: Malformed JSON request.
+            - 1001: The apiName attribute is required.
+            - 1002: The openApiSpec attribute is required.
+            - 1100: The value of openApiSpec is not recognized.
+            - 1101: The openApiSpec format is not valid.
+            - 1102: The version property was not found in the OpenAPI Spec.
+            - 1003: oAuth2Profiles field must be an array.
+            - 1004: oAuth2Profiles field items must be objects.
+            - 1201: For the oAuth2Profiles items, the profileName attribute is mandatory.
+            - 1202: For the oAuth2Profiles items, the grantType attribute cannot be null.
+            - 1203: For the oAuth2Profiles items, the grantType attribute cannot be blank.
+            - 1204: For the oAuth2Profiles items, the grantType {valueOfGrantType} is invalid.
+            - 1205: For the oAuth2Profiles items, the accessTokenPosition attribute cannot be null.
+            - 1206: For the oAuth2Profiles items, the accessTokenPosition attribute cannot be blank.
+            - 1207: For the oAuth2Profiles items, the accessTokenPosition {valueOfAccessTokenPosition} is invalid.
+            - 1208: For the oAuth2Profiles items if {someAttribute} equal {someAttributeValue} the {mandatoryAttribute} attribute is mandatory.
+            - 1005: headers field must be an array.
+            - 1006: headers field items must be objects.
+            - 1301: For the headers items, the key attribute is mandatory.
+            - 1302: For the header items, the value attribute is mandatory.
+            - 1007: testCaseNames field must be an array.
+            - 1008: testCaseNames field items must be strings.
+            - 1401: The testCaseNames items cannot be empty.
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errors:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: "1000"
+                          message:
+                            type: string
+                            description: Error message description
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Exit structure
+              example:
+                result:
+                  responseCode: 0
+                  errors:
+                    errorCode: 1000
+                    message: Error message
+                    solution: Solution message
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errores:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: E001
+                          message:
+                            type: string
+                            description: Error message
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Exit structure
+              example:
+                result:
+                  responseCode: 0
+                  errores:
+                    errorCode: E404
+                    message: Not Found
+        406:
+          description: Not Acceptable
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errores:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: E001
+                          message:
+                            type: string
+                            description: Error message
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Exit structure
+              example:
+                result:
+                  responseCode: 0
+                  errores:
+                    errorCode: E406
+                    message: Not Acceptable
+        415:
+          description: Unsupported Media Type
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errores:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: E001
+                          message:
+                            type: string
+                            description: Error message
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Estructura de salida para la ejecución de la operación
+                      de Transferencia Inmediata.
+              example:
+                result:
+                  responseCode: 0
+                  errores:
+                    errorCode: E415
+                    message: Unsupported Media Type
+        500:
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errores:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: "30212"
+                          message:
+                            type: string
+                            description: Error message
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Exit structure
+              example:
+                result:
+                  responseCode: 0
+                  errores:
+                    errorCode: E002
+                    message: Internal server error
+                    solution: Solución
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                required:
+                - result
+                type: object
+                properties:
+                  result:
+                    required:
+                    - responseCode
+                    type: object
+                    properties:
+                      responseCode:
+                        type: integer
+                        description: If the answer is 1 it has gone well, for the
+                          rest of the values it implies an error
+                        format: int32
+                        example: 1
+                      errores:
+                        required:
+                        - errorCode
+                        - message
+                        type: object
+                        properties:
+                          errorCode:
+                            type: string
+                            description: Error code
+                            example: E001
+                          message:
+                            type: string
+                            description: Error message
+                            example: Error message
+                          solution:
+                            type: string
+                            description: Solution error
+                            example: Solution message
+                        description: Standard error output
+                    description: Exit structure
+              example:
+                result:
+                  responseCode: 0
+                  errores:
+                    errorCode: E003
+                    message: Unexpected error
+components:
+  schemas:
+    ProyectSoapUI:
+      required:
+      - apiName
+      - openApiSpec
+      type: object
+      properties:
+        apiName:
+          type: string
+          description: Name of SoapUI proyect
+          example: Users
+        oAuth2Profiles:
+          $ref: '#/components/schemas/OAuth2Profiles'
+        openApiSpec:
+          type: string
+          format: byte
+          description: Base-64 encoded OpenAPI Spec
+          example: b3BlbmFwaTogMy4wLjAKaW5mbzoKICB0aXRsZTogU2FtcGxlIEFQSQogIGRlc2NyaXB0aW9uOiBPcHRpb25hbCBtdWx0aWxpbmUgb3Igc2luZ2xlLWxpbmUgZGVzY3JpcHRpb24gaW4gW0NvbW1vbk1hcmtdKGh0dHA6Ly9jb21tb25tYXJrLm9yZy9oZWxwLykgb3IgSFRNTC4KICB2ZXJzaW9uOiAwLjEuOQpzZXJ2ZXJzOgogIC0gdXJsOiBodHRwOi8vYXBpLmV4YW1wbGUuY29tL3YxCiAgICBkZXNjcmlwdGlvbjogT3B0aW9uYWwgc2VydmVyIGRlc2NyaXB0aW9uLCBlLmcuIE1haW4gKHByb2R1Y3Rpb24pIHNlcnZlcgogIC0gdXJsOiBodHRwOi8vc3RhZ2luZy1hcGkuZXhhbXBsZS5jb20KICAgIGRlc2NyaXB0aW9uOiBPcHRpb25hbCBzZXJ2ZXIgZGVzY3JpcHRpb24sIGUuZy4gSW50ZXJuYWwgc3RhZ2luZyBzZXJ2ZXIgZm9yIHRlc3Rpbmc=
+        testCaseNames:
+          type: array
+          description: List of test case names for each method of the resources.
+          items:
+            type: string
+            example: Success
+        headers:
+          $ref: '#/components/schemas/Headers'
+    Headers:
+      type: array
+      description: List of optionals headers. This apply in all resources
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+            description: Key of header param
+            example: trace-id
+          value:
+            type: string
+            description: Value of header param
+            example: ewogIm5hbWUiIDogIm5vbWJyZSIsCiAiZGlyIiA6ICJkaXIiCn0
+    OAuth2ProfileWithExistingToken:
+      type: object
+      properties:
+        profileName:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9]*$"
+          example: dev
+        accessToken:
+          type: string
+          pattern: "^[A-Za-z0-9]*$"
+          example: Ty3vo6cGkJu6DoK1GZUSNcgOj5rQ
+      required:
+        - profileName
+    OAuth2Profile:
+      type: object
+      properties:
+        profileName:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9]*$"
+          example: dev
+        grantType:
+          type: string
+          description: Grant type
+          example: AUTHORIZATION_CODE
+          enum:
+          - AUTHORIZATION_CODE
+          - CLIENT_CREDENTIALS
+          - IMPLICIT
+          - RESOURCE_OWNER_PASSWORD_CREDENTIALS
+        clientId:
+          type: string
+          maxLength: 100
+          pattern: "^[A-Za-z0-9]*$"
+          example: a2354akdjfasdkfj
+        scope:
+          type: string
+          description: It will be a comma separated text string with the different scopes
+          example: openid, secret
+        accessTokenPosition:
+          type: string
+          description: Access Token Position
+          example: HEADER
+          enum:
+          - HEADER
+          - BODY
+          - QUERY
+      required:
+        - profileName
+        - grantType
+        - clientId
+      discriminator:
+        propertyName: grantType
+    OAuth2ProfileAuthorizationCode:
+      allOf:
+        - $ref: '#/components/schemas/OAuth2Profile'
+        - type: object
+          properties:
+            clientSecret:
+              type: string
+              maxLength: 100
+              pattern: "^[A-Za-z0-9]*$"
+              example: a2354akdjfasdkfj
+            accessTokenURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/token
+            authorizationURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/auth
+            redirectURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/callback
+          required:
+            - clientSecret
+            - accessTokenURI
+            - authorizationURI
+            - redirectURI
+    OAuth2ProfileClientCredentials:
+      allOf:
+        - $ref: '#/components/schemas/OAuth2Profile'
+        - type: object
+          properties:
+            clientSecret:
+              type: string
+              maxLength: 100
+              pattern: "^[A-Za-z0-9]*$"
+              example: a2354akdjfasdkfj
+            accessTokenURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/token
+          required:
+            - clientSecret
+            - accessTokenURI
+    OAuth2ProfileResourceOwnerPasswordCredentials:
+      allOf:
+        - $ref: '#/components/schemas/OAuth2Profile'
+        - type: object
+          properties:
+            clientSecret:
+              type: string
+              maxLength: 100
+              pattern: "^[A-Za-z0-9]*$"
+              example: a2354akdjfasdkfj
+            accessTokenURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/token
+            username:
+              type: string
+              example: username
+            password:
+              type: string
+              example: password
+          required:
+            - clientSecret
+            - accessTokenURI
+            - username
+            - password
+    OAuth2ProfileImplicit:
+      allOf:
+        - $ref: '#/components/schemas/OAuth2Profile'
+        - type: object
+          properties:
+            authorizationURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/auth
+            redirectURI:
+              type: string
+              format: uri
+              maxLength: 2083
+              pattern: '^(https?)://'
+              example: http://api.cloudappi.net/callback
+          required:
+            - authorizationURI
+            - redirectURI
+    OAuth2ProfileToGetToken:
+      oneOf:
+        - $ref: '#/components/schemas/OAuth2ProfileAuthorizationCode'
+        - $ref: '#/components/schemas/OAuth2ProfileClientCredentials'
+        - $ref: '#/components/schemas/OAuth2ProfileResourceOwnerPasswordCredentials'
+        - $ref: '#/components/schemas/OAuth2ProfileImplicit'
+      discriminator:
+        propertyName: grantType
+        mapping:
+          AUTHORIZATION_CODE: '#/components/schemas/OAuth2ProfileAuthorizationCode'
+          CLIENT_CREDENTIALS: '#/components/schemas/OAuth2ProfileClientCredentials'
+          IMPLICIT: '#/components/schemas/OAuth2ProfileResourceOwnerPasswordCredentials'
+          RESOURCE_OWNER_PASSWORD_CREDENTIALS: '#/components/schemas/OAuth2ProfileImplicit'
+    OAuth2Profiles:
+      type: array
+      description: List with the configurations of the oAuth 2.0 authentication profiles
+      items:
+        oneOf:
+          - $ref: "#/components/schemas/OAuth2ProfileWithExistingToken"
+          - $ref: "#/components/schemas/OAuth2ProfileToGetToken"
