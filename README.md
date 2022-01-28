@@ -1,8 +1,7 @@
 
-
 <p align="center">
 	<a href="https://apiaddicts.org/">
-	  <img src="https://apiaddicts.org/logo.png">
+	  <img src="logo.png">
 	</a>
 </p>
 
