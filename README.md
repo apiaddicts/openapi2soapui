@@ -11,6 +11,9 @@
 ## CloudAPPi
 CloudAppi is one leader in APIs in global word. See the [CloudAPPi Services](https://cloudappi.net)
 
+## RSI
+RSI is one leader in Bank As a Services in Europe. See the [Rural Services](https://www.ruralserviciosinformaticos.com/) 
+
 # OpenAPI to SoapUI
 
 [API](./src/main/resources/static/api.yaml) to generate a SoapUI project from an OpenAPI Specification (fka Swagger Specification)
