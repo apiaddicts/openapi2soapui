@@ -593,7 +593,7 @@ public class SoapUIProject {
 		Set<String> successResponsesCodes = operation.getResponses().keySet().stream().filter(s -> s.startsWith("2")).collect(Collectors.toSet());
 		if (!successResponsesCodes.isEmpty()) {
 			ApiResponse succesResponse = operation.getResponses().get(successResponsesCodes.iterator().next());
-			if (succesResponse.getContent().entrySet() != null && !succesResponse.getContent().entrySet().isEmpty()) {
+			if (succesResponse.getContent() != null && succesResponse.getContent().entrySet() != null && !succesResponse.getContent().entrySet().isEmpty()) {
 				String mediaTypeStr = succesResponse.getContent().entrySet().iterator().next().getKey();
 				restRequest.setMediaType(mediaTypeStr);
 			}
