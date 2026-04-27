@@ -3,7 +3,9 @@
 
 [API](./src/main/resources/static/api.yaml) to generate a SoapUI project from an OpenAPI Specification (fka Swagger Specification)
 
-Given an OpenAPI Specification, either v2 or v3, a SoapUI project is generated with the _requests_ for each resource operation and a _test suite_. The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
+Given an OpenAPI Specification (v3.0.x, v3.1.x, or v3.2.x), a SoapUI project is generated with the _requests_ for each resource operation and a _test suite_. The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
+
+**Supported OpenAPI Versions:** 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0+, 3.2.x (forward compatible)
 
 ### This repository is intended for :octocat: **community** use, it can be modified and adapted without commercial use. If you need a version, support or help for your **enterprise** or project, please contact us 📧 devrel@apiaddicts.org
 
@@ -69,21 +71,124 @@ The variables are obtained from:
 - httpMethodInUppercase: each HTTP methods of paths defined in OpenAPI Spec
 - testCaseName: each test case name defined in the property testCaseNames of request body
 
+# 🎛️ Advanced Generation Options
+
+OpenAPI2SoapUI supports 7 optional parameters to customize SoapUI project generation. All options are optional and backward-compatible.
+
+## Request Body Parameters
+
+```json
+{
+  "apiName": "MyAPI",
+  "openApiSpec": "base64-encoded-spec",
+  "testCaseNames": ["Success", "ErrorCase"],
+  "options": {
+    "readOnly": false,
+    "serverPattern": null,
+    "minimalEndpoints": false,
+    "microcksHeaders": false,
+    "generateOneOfAnyOf": false,
+    "examples": null,
+    "validateSchema": false
+  }
+}
+```
+
+## Option Descriptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| **readOnly** | boolean | false | Excludes write operations (POST, PUT, PATCH, DELETE) from generation. Only GET, HEAD, and OPTIONS are included. |
+| **serverPattern** | string | null | Selects a server by URL pattern matching. If multiple servers match, the first match is used. |
+| **minimalEndpoints** | boolean | false | Generates only the "Success_TestCase" for each endpoint. Useful for minimal test coverage. |
+| **microcksHeaders** | boolean | false | Adds `X-Microcks-Response-Name` header to requests with the operation ID as value. For Microcks integration. |
+| **generateOneOfAnyOf** | boolean | false | Resolves composed schemas (oneOf, anyOf, allOf) in request/response bodies. |
+| **examples** | object | null | Custom default values for generated request examples (string, number, boolean, date, dateTime). |
+| **validateSchema** | boolean | false | Adds a Groovy script test step to validate HTTP response status codes (2xx range). |
+
+## Example Usage
+
+### Read-Only API
+```json
+{
+  "apiName": "MyReadOnlyAPI",
+  "openApiSpec": "...",
+  "options": {
+    "readOnly": true
+  }
+}
+```
+
+### Multi-Environment with Server Selection
+```json
+{
+  "apiName": "MyAPI",
+  "openApiSpec": "...",
+  "options": {
+    "serverPattern": "staging"
+  }
+}
+```
+
+### Custom Examples
+```json
+{
+  "apiName": "MyAPI",
+  "openApiSpec": "...",
+  "options": {
+    "examples": {
+      "successful": {
+        "string": "hello-world",
+        "number": 42,
+        "boolean": true,
+        "date": "2025-12-31",
+        "dateTime": "2025-12-31T23:59:59.000+00:00"
+      }
+    }
+  }
+}
+```
+
+### Validation Testing
+```json
+{
+  "apiName": "MyAPI",
+  "openApiSpec": "...",
+  "options": {
+    "validateSchema": true
+  }
+}
+```
+
+### Combined Options
+```json
+{
+  "apiName": "MyAPI",
+  "openApiSpec": "...",
+  "options": {
+    "readOnly": true,
+    "serverPattern": "production",
+    "microcksHeaders": true,
+    "validateSchema": true
+  }
+}
+```
+
 ## Technology stack
 ### Overview
 
 |Technology              |Description                 |
 |------------------------|----------------------------|
-|Core Framework          |Spring Boot 2               |
+|Core Framework          |Spring Boot 3.3.0           |
 
 ### Server - Backend
 
 |Technology                                               |Description                                                                   |
 |---------------------------------------------------------|------------------------------------------------------------------------------|
-|[JDK 11](https://docs.oracle.com/en/java/javase/11/)                       |Java Development Kit                                                          |
-|[Spring Boot 2](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
+|[JDK 17](https://docs.oracle.com/en/java/javase/17/)                       |Java Development Kit                                                          |
+|[Spring Boot 3.3.0](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
 |[Maven 3](https://maven.apache.org)                      |Dependency Management                                                         |
-|[Tomcat 9](https://tomcat.apache.org)                    |Server deploy WAR                                                             |
+|[Tomcat 10](https://tomcat.apache.org)                    |Server deploy WAR                                                             |
 
 ###  Libraries and Plugins
 |Technology              |Description                 |
@@ -92,7 +197,7 @@ The variables are obtained from:
 |[Hibernate Validator](https://hibernate.org/validator/)|Express validation rules in a standardized way using annotation-based constraints and benefit from transparent integration with a wide variety of frameworks.|
 |[Springdoc OpenAPI UI](https://springdoc.org/)|OpenAPI 3 Library for spring boot projects. Is based on swagger-ui, to display the OpenAPI description.|
 |[SoapUI core module](https://www.soapui.org/open-source/)|SoapUI is the world's leading Functional Testing tool for SOAP and REST testing.|
-|[Swagger Parser](https://github.com/swagger-api/swagger-parser)|Parses OpenAPI definitions in JSON or YAML format into swagger-core representation as Java POJO, returning any validation warnings/errors.|
+|[Swagger Parser 2.1.19+](https://github.com/swagger-api/swagger-parser)|Parses OpenAPI definitions (3.0.x, 3.1.x) in JSON or YAML format into swagger-core representation as Java POJO. Supports JSON Schema 2020-12 and nullable types.|
 
 # 📑 Getting started 
 
@@ -100,7 +205,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-* [JDK Installation](https://docs.oracle.com/en/java/javase/11/install/overview-jdk-installation.html#GUID-8677A77F-231A-40F7-98B9-1FD0B48C346A)
+* [JDK 17 Installation](https://docs.oracle.com/en/java/javase/17/install/overview-jdk-installation.html)
 * [Apache Maven Installation](https://maven.apache.org/install.html)
 * [Setting up Lombok](https://projectlombok.org/setup/overview)
   * [Eclipse and its offshoots](https://projectlombok.org/setup/eclipse)
@@ -281,10 +386,69 @@ $CATALINA_HOME/webapps/openapi2soapui.war
 * Restart Tomcat Server
 * URL to access: **\<protocol\>://\<host\>:\<port\>/openapi2soapui/api-openapi-to-soapui/v1/soap-ui-projects**
 
+## OpenAPI Version Support
+
+OpenAPI2SoapUI supports multiple OpenAPI specification versions with full feature compatibility:
+
+### Supported Versions
+
+| Version | Status | Features |
+|---------|--------|----------|
+| **OpenAPI 3.0.0** | ✅ Fully Supported | All features |
+| **OpenAPI 3.0.1** | ✅ Fully Supported | All features |
+| **OpenAPI 3.0.2** | ✅ Fully Supported | All features |
+| **OpenAPI 3.0.3** | ✅ Fully Supported | All features |
+| **OpenAPI 3.1.0+** | ✅ Fully Supported | All features + JSON Schema 2020-12, nullable types |
+| **OpenAPI 3.2.x** | ✅ Forward Compatible | Ready for future releases |
+
+### Key Features by Version
+
+**OpenAPI 3.0.x:**
+- Standard REST endpoint generation
+- All HTTP methods (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS)
+- Request/response body handling
+- Parameter handling (path, query, header)
+
+**OpenAPI 3.1.x (New):**
+- Everything from 3.0.x plus:
+- JSON Schema 2020-12 support
+- Nullable types: `type: [string, null]`
+- Enhanced schema composition (oneOf, anyOf, allOf)
+- Improved example handling
+- Better type flexibility
+
+**All Versions Support:**
+- ✅ readOnly option
+- ✅ serverPattern selection
+- ✅ minimalEndpoints generation
+- ✅ microcksHeaders integration
+- ✅ generateOneOfAnyOf resolution
+- ✅ Custom examples
+- ✅ Schema validation
+
+For detailed information, see [OpenAPI Version Support Documentation](./OPENAPI_VERSIONS.md).
+
+## Testing
+
+The project includes comprehensive test coverage with **88 tests** covering:
+- ✅ 7 feature options
+- ✅ OpenAPI 3.0.x and 3.1.x support
+- ✅ All HTTP methods
+- ✅ Parameter handling (path, query, header)
+- ✅ Complex schema handling
+- ✅ Edge cases and error scenarios
+- ✅ End-to-end generation
+
+Run tests with:
+```sh
+mvn clean test
+```
+
 ## Documentation
 
 - [cURL Example](example.sh)
 - [Open API Specification](./src/main/resources/static/api.yaml)
+- [OpenAPI Version Support](./OPENAPI_VERSIONS.md)
 - [Swagger UI](http://localhost:8080/swagger-ui.html) - `http://localhost:8080/swagger-ui.html`
 - Find Java Doc in **javadoc** folder
 - Java Doc is generated in ./target/site/apidocs` folder using the Maven command 
