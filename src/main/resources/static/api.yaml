@@ -453,6 +453,8 @@ components:
             example: Success
         headers:
           $ref: '#/components/schemas/Headers'
+        options:
+          $ref: '#/components/schemas/SoapUIProjectOptions'
     Headers:
       type: array
       description: List of optionals headers. This apply in all resources
@@ -640,3 +642,66 @@ components:
         oneOf:
           - $ref: "#/components/schemas/OAuth2ProfileWithExistingToken"
           - $ref: "#/components/schemas/OAuth2ProfileToGetToken"
+    SoapUIProjectOptions:
+      type: object
+      description: Optional advanced configuration options for SoapUI project generation
+      properties:
+        readOnly:
+          type: boolean
+          default: false
+          description: When true, skip POST/PUT/PATCH/DELETE operations from resources and test suites
+        serverPattern:
+          type: string
+          description: Filter servers by URL substring; uses first match or falls back to first server
+        minimalEndpoints:
+          type: boolean
+          default: false
+          description: When true, generate only the default Success test case per operation
+        microcksHeaders:
+          type: boolean
+          default: false
+          description: When true, add X-Microcks-Response-Name header with operationId value to each request
+        generateOneOfAnyOf:
+          type: boolean
+          default: false
+          description: When true, resolve oneOf/anyOf/allOf schemas to first candidate for example generation
+        examples:
+          $ref: '#/components/schemas/ExampleValues'
+        validateSchema:
+          type: boolean
+          default: false
+          description: When true, add a Groovy script test step validating 2xx response status
+    ExampleValues:
+      type: object
+      description: Custom example values for request body property types
+      properties:
+        successful:
+          $ref: '#/components/schemas/ExampleSet'
+        wrong:
+          $ref: '#/components/schemas/ExampleSet'
+    ExampleSet:
+      type: object
+      description: Per-type example value mappings
+      properties:
+        string:
+          type: string
+          description: Example value for string type properties
+          example: "example"
+        number:
+          type: number
+          description: Example value for number/integer type properties
+          example: 42
+        boolean:
+          type: boolean
+          description: Example value for boolean type properties
+          example: true
+        date:
+          type: string
+          format: date
+          description: Example value for date type properties (yyyy-MM-dd format)
+          example: "2026-04-27"
+        dateTime:
+          type: string
+          format: date-time
+          description: Example value for dateTime type properties
+          example: "2026-04-27T00:00:00.000+00:00"

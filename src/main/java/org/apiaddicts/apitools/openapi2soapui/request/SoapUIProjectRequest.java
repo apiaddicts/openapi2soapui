@@ -37,4 +37,8 @@ public class SoapUIProjectRequest {
 	@Valid
 	@JsonProperty("headers")
 	private List<Header> headers;
+
+	@Valid
+	@JsonProperty("options")
+	private SoapUIProjectOptions options;
 }

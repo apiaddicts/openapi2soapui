@@ -30,4 +30,21 @@ public class Constants {
 	public static final String HEADERS_KEY = "headers";
 	public static final String AUTHENTICATION_PROFILES_KEY = "oAuth2Profiles";
 	public static final String TEST_CASE_NAMES_KEY = "testCaseNames";
+
+	// Feature: microcksHeaders
+	public static final String MICROCKS_RESPONSE_HEADER_KEY = "X-Microcks-Response-Name";
+
+	// Feature: validateSchema — Groovy test step
+	public static final String VALIDATE_SCHEMA_GROOVY_TYPE = "groovy";
+	public static final String VALIDATE_SCHEMA_STEP_NAME = "Validation_TestStep";
+	public static final String VALIDATE_SCHEMA_GROOVY_SCRIPT =
+		"def results = testRunner.getResults()\n" +
+		"if (results != null && !results.isEmpty()) {\n" +
+		"    def response = results.last().getResponse()\n" +
+		"    if (response != null) {\n" +
+		"        def statusCode = response.getStatusCode() as int\n" +
+		"        assert statusCode >= 200 && statusCode < 300 :\n" +
+		"            'Expected 2xx status code but got: ' + statusCode\n" +
+		"    }\n" +
+		"}";
 }

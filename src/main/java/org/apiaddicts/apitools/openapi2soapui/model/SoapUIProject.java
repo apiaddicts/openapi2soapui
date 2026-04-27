@@ -13,6 +13,10 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.DEFAULT;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.JSON;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_TEST_CASE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MICROCKS_RESPONSE_HEADER_KEY;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALIDATE_SCHEMA_GROOVY_TYPE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALIDATE_SCHEMA_STEP_NAME;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALIDATE_SCHEMA_GROOVY_SCRIPT;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,8 +73,10 @@ import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
+import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.DateSchema;
+import io.swagger.v3.oas.models.media.DateTimeSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.NumberSchema;
@@ -86,7 +92,9 @@ import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
+import org.apiaddicts.apitools.openapi2soapui.request.SoapUIProjectOptions;
 import org.apiaddicts.apitools.openapi2soapui.util.RefResolver;
+import com.eviware.soapui.impl.wsdl.teststeps.WsdlGroovyScriptTestStep;
 
 /**
  * Class with properties to build SoapUI Project
@@ -126,7 +134,12 @@ public class SoapUIProject {
 	 * Test case names from request body
 	 */
 	private Set<String> testCaseNames;
-	
+
+	/**
+	 * Advanced options from request body
+	 */
+	private SoapUIProjectOptions options;
+
 	/**
 	 * SoapUIProject constructor
 	 * Set default test case names if testCaseNames is null or empty
@@ -143,35 +156,37 @@ public class SoapUIProject {
 	 * @param oAuth2Profiles authentication profiles from request body
 	 * @param headers from request body
 	 * @param testCaseNames from request body
+	 * @param options advanced options from request body
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, SoapUIProjectOptions options) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
-		
+		this.options = (options != null) ? options : new SoapUIProjectOptions();
+
 		this.apiVersion = openAPI.getInfo().getVersion();
-		
+
 		if (testCaseNames == null || testCaseNames.isEmpty()) {
 			this.testCaseNames = new HashSet<>(Arrays.asList(SUCCESS_TEST_CASE));
 		} else {
 			this.testCaseNames = testCaseNames;
 		}
-		
+
 		createTempFile();
-		
+
 		project = new WsdlProject();
 		project.setName(apiName + "_" + apiVersion);
-		
+
 		if (oAuth2Profiles != null) {
 			setAuthProfiles(oAuth2Profiles);
 		}
-		
+
 		restService = (RestService) project.addNewInterface(apiName, RestServiceFactory.REST_TYPE);
 		restService.setDescription(openAPI.getInfo().getDescription());
-		
+
 		setRestServiceEndpoints(openAPI.getServers());
 		setRestServiceResources(openAPI.getPaths());
 		setTestCases();
@@ -188,11 +203,21 @@ public class SoapUIProject {
 	/**
 	 * Set REST Service Endpoints and BasePath
 	 * Iterate OpenAPI servers, extract host part and set as Endpoint
-	 * If REST Service has not basePath, extract from first server item and set it 
+	 * If REST Service has not basePath, extract from first server item and set it
+	 * If serverPattern is set, filter servers to first match or fall back to first server
 	 * @param servers list of servers in OpenAPI
 	 */
 	private void setRestServiceEndpoints(List<Server> servers) {
-		for (Server server : servers) {
+		List<Server> serversToProcess = servers;
+		if (options.getServerPattern() != null && !options.getServerPattern().isBlank()) {
+			Server matched = servers.stream()
+				.filter(s -> s.getUrl().contains(options.getServerPattern()))
+				.findFirst()
+				.orElse(servers.get(0));
+			serversToProcess = List.of(matched);
+		}
+
+		for (Server server : serversToProcess) {
 			String serverUrl = server.getUrl();
 			try {
 				URL url = new URL(serverUrl);
@@ -329,19 +354,28 @@ public class SoapUIProject {
 	 * Set Methods to Resource
 	 * Set Response Representatios (For each Response code and for each media types in response code)
 	 * If has request body set Request Representatios (Media types)
+	 * Skip write operations (POST/PUT/PATCH/DELETE) if readOnly mode is enabled
 	 * @param operations list of path operations
 	 */
 	private void setResourceMethods(RestResource restResource, Map<HttpMethod, Operation> operations) {
 		if (operations != null && !operations.isEmpty()) {
 			operations.forEach((httpMethod, operation) -> {
+				// Feature 1: readOnly
+				if (options.isReadOnly()) {
+					String method = httpMethod.name();
+					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
+						return;
+					}
+				}
+
 				RestMethod restMethod = restResource.addNewMethod((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
 				restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
 				restMethod.setDescription((operation.getDescription() != null) ? operation.getDescription() : "");
-				
+
 				if (operation.getRequestBody() != null) {
 					setMethodRequestRepresentations(restMethod, operation.getRequestBody());
 				}
-				
+
 				setMethodResponseRepresentations(restMethod, operation.getResponses());
 			});
 		}
@@ -394,37 +428,46 @@ public class SoapUIProject {
 	 * Iterate Operations in OpenAPI Path
 	 * For each Operation, search the Method by operation id or method name
 	 * Create and configure Request and add to Method
+	 * Skip write operations if readOnly mode is enabled
 	 * @param pathName path name to find Resource
 	 * @param pathItem instance of OpenAPI Path to iterate its Operations
 	 */
 	private void setMethodsRequests(String pathName, PathItem pathItem) {
 		RestResource restResource = restService.getResourceByFullPath(restService.getBasePath() + pathName);
-		
+
 		if (restResource != null) {
 			pathItem.readOperationsMap().forEach((httpMethod, operation) -> {
+				// Feature 1: readOnly
+				if (options.isReadOnly()) {
+					String method = httpMethod.name();
+					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
+						return;
+					}
+				}
+
 				RestMethod restMethod = restResource.getRestMethodByName((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
 				if (restMethod == null) return;
 				RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
 				RestRequestConfig restRequestConfig = restRequest.getConfig();
-						
+
 				restRequestConfig.setOriginalUri(restService.getEndpoints()[0] + restResource.getFullPath(true));
 				setRequestAuthProfile(restRequestConfig);
 				setRequestJMSConfig(restRequestConfig);
-				
+
 				restRequest.setEndpoint(restService.getEndpoints()[0]);
 				setRequestMediaType(restRequest, operation);
 
 				setResourceParameters(restResource, pathItem.getParameters());
 				setMethodParameters(restMethod, operation.getParameters());
-				
+
 				if (operation.getRequestBody() != null) {
 					Content content = operation.getRequestBody().getContent();
 					if (content != null && !content.isEmpty()) {
 						setRequestContent(restRequest, content);
 					}
 				}
-				
-				setRequestHeaders(restRequest);
+
+				setRequestHeaders(restRequest, operation);
 			});
 		}
 	}
@@ -432,12 +475,20 @@ public class SoapUIProject {
 	/**
 	 * Set Request Headers
 	 * Iterate headers received in request body and set to Request
+	 * Add Microcks response header if microcksHeaders option is enabled
 	 * @param restRequest instance of Method Request
+	 * @param operation OpenAPI Operation
 	 */
-	private void setRequestHeaders(RestRequest restRequest) {
+	private void setRequestHeaders(RestRequest restRequest, Operation operation) {
+		StringToStringMap requestHeaders = new StringToStringMap();
 		if (headers != null && !headers.isEmpty()) {
-			StringToStringMap requestHeaders = new StringToStringMap();
 			headers.forEach(header -> requestHeaders.put(header.getKey(), header.getValue()));
+		}
+		// Feature 4: microcksHeaders
+		if (options.isMicrocksHeaders() && operation.getOperationId() != null) {
+			requestHeaders.put(MICROCKS_RESPONSE_HEADER_KEY, operation.getOperationId());
+		}
+		if (!requestHeaders.isEmpty()) {
 			restRequest.setRequestHeaders(requestHeaders);
 		}
 	}
@@ -518,15 +569,17 @@ public class SoapUIProject {
 	 * Get property example
 	 * Validate if Property Schema has example, if so, return example value
 	 * If not, return a generic value according to data type
+	 * Feature 5: generateOneOfAnyOf - handle composed schemas
+	 * Feature 6: examples - use custom example values if configured
 	 * @param property
 	 * @param refResolver
 	 * @return
 	 * @throws JSONException
 	 */
 	@SuppressWarnings("rawtypes")
-	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {		
+	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {
 		Object example = property.getExample();
-		
+
 		if (example == null) {
 			if (property instanceof ObjectSchema) {
 				example = iterateProperties(((ObjectSchema) property).getProperties(), refResolver);
@@ -536,27 +589,97 @@ public class SoapUIProject {
 				jsonArray.put(getPropertyExample(items, refResolver));
 				example = jsonArray;
 			} else if (property instanceof IntegerSchema) {
-				example = 0;
+				example = getExampleNumber();
 			} else if (property instanceof NumberSchema) {
-				example = 0;
+				example = getExampleNumber();
 			} else if (property instanceof BooleanSchema) {
-				example = true;
+				example = getExampleBoolean();
 			} else if (property instanceof DateSchema) {
-				example = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+				example = getExampleDate();
+			} else if (property instanceof DateTimeSchema) {
+				example = getExampleDateTime();
 			} else if (property instanceof StringSchema) {
 				StringSchema stringProperty = (StringSchema) property;
 				List<String> enums = stringProperty.getEnum();
 				if (enums != null && !enums.isEmpty()) {
 					example = enums.get(0);
 				} else {
-					example = "";
+					example = getExampleString();
 				}
+			} else if (property instanceof ComposedSchema && options.isGenerateOneOfAnyOf()) {
+				// Feature 5: generateOneOfAnyOf
+				ComposedSchema cs = (ComposedSchema) property;
+				List<Schema> candidates = new ArrayList<>();
+				if (cs.getOneOf() != null) candidates.addAll(cs.getOneOf());
+				if (cs.getAnyOf() != null) candidates.addAll(cs.getAnyOf());
+				if (cs.getAllOf() != null) candidates.addAll(cs.getAllOf());
+				Schema<?> chosen = candidates.stream()
+					.map(refResolver::resolveSchema)
+					.filter(s -> s != null)
+					.findFirst()
+					.orElse(null);
+				example = (chosen != null) ? getPropertyExample(chosen, refResolver) : "";
 			} else {
 				example = "";
 			}
 		}
-		
+
 		return example;
+	}
+
+	/**
+	 * Get example number value (feature 6: custom examples)
+	 * @return configured number or 0
+	 */
+	private Object getExampleNumber() {
+		if (options.getExamples() != null && options.getExamples().getSuccessful() != null
+				&& options.getExamples().getSuccessful().getNumber() != null)
+			return options.getExamples().getSuccessful().getNumber();
+		return 0;
+	}
+
+	/**
+	 * Get example boolean value (feature 6: custom examples)
+	 * @return configured boolean or true
+	 */
+	private Object getExampleBoolean() {
+		if (options.getExamples() != null && options.getExamples().getSuccessful() != null
+				&& options.getExamples().getSuccessful().getBooleanValue() != null)
+			return options.getExamples().getSuccessful().getBooleanValue();
+		return true;
+	}
+
+	/**
+	 * Get example date value (feature 6: custom examples)
+	 * @return configured date or today in yyyy-MM-dd format
+	 */
+	private String getExampleDate() {
+		if (options.getExamples() != null && options.getExamples().getSuccessful() != null
+				&& options.getExamples().getSuccessful().getDate() != null)
+			return options.getExamples().getSuccessful().getDate();
+		return new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+	}
+
+	/**
+	 * Get example dateTime value (feature 6: custom examples)
+	 * @return configured dateTime or today in yyyy-MM-dd'T'HH:mm:ss.SSSXXX format
+	 */
+	private String getExampleDateTime() {
+		if (options.getExamples() != null && options.getExamples().getSuccessful() != null
+				&& options.getExamples().getSuccessful().getDateTime() != null)
+			return options.getExamples().getSuccessful().getDateTime();
+		return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(new Date());
+	}
+
+	/**
+	 * Get example string value (feature 6: custom examples)
+	 * @return configured string or empty string
+	 */
+	private String getExampleString() {
+		if (options.getExamples() != null && options.getExamples().getSuccessful() != null
+				&& options.getExamples().getSuccessful().getString() != null)
+			return options.getExamples().getSuccessful().getString();
+		return "";
 	}
 
 	/**
@@ -686,8 +809,14 @@ public class SoapUIProject {
 	 * Iterate SoapUI Project Resources and Methods and add Test Suite for each Method
 	 * Add Test Cases to Test Suite
 	 * Add Test Steps (Request and Groovy Script) to each Test Case
+	 * Feature 3: minimalEndpoints - use only Success_TestCase if enabled
+	 * Feature 7: validateSchema - add Groovy validation step if enabled
 	 */
 	private void setTestCases() {
+		Set<String> effectiveTestCaseNames = options.isMinimalEndpoints()
+			? new HashSet<>(Arrays.asList(SUCCESS_TEST_CASE))
+			: testCaseNames;
+
 		List<RestResource> resources = restService.getAllResources();
 		if (resources != null && !resources.isEmpty()) {
 			resources.forEach(restResource -> {
@@ -697,15 +826,33 @@ public class SoapUIProject {
 						String method = restMethod.getMethod().name();
 						String testSuiteName = restResource.getPath() + "_" + method + "_" + SUITE_SUFFIX;
 						WsdlTestSuite testSuite = project.addNewTestSuite(testSuiteName);
-						for (String testCaseNameItem : testCaseNames) {
+						for (String testCaseNameItem : effectiveTestCaseNames) {
 							String testCaseName = testCaseNameItem + "_" + CASE_SUFFIX;
 							WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 							TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 							testCase.addTestStep(ejecutionTestStepConfig);
+
+							// Feature 7: validateSchema
+							if (options.isValidateSchema()) {
+								addValidationGroovyStep(testCase);
+							}
 						}
 					});
 				}
 			});
+		}
+	}
+
+	/**
+	 * Add Groovy Script validation step to test case
+	 * Validates that response status code is 2xx
+	 * @param testCase test case to add the step to
+	 */
+	private void addValidationGroovyStep(WsdlTestCase testCase) {
+		com.eviware.soapui.model.testsuite.TestStep groovyStep = testCase.addTestStep(
+			VALIDATE_SCHEMA_GROOVY_TYPE, VALIDATE_SCHEMA_STEP_NAME);
+		if (groovyStep instanceof WsdlGroovyScriptTestStep) {
+			((WsdlGroovyScriptTestStep) groovyStep).setScript(VALIDATE_SCHEMA_GROOVY_SCRIPT);
 		}
 	}
 
