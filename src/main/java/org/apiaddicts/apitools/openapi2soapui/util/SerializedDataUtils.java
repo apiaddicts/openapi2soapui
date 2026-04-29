@@ -1,6 +1,8 @@
 package org.apiaddicts.apitools.openapi2soapui.util;
 
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apiaddicts.apitools.openapi2soapui.error.exceptions.DecodeBase64Exception;
@@ -19,6 +21,8 @@ import io.swagger.v3.parser.core.models.ParseOptions;
  */
 @Slf4j
 public class SerializedDataUtils {
+	private static final String QUERY = "query";
+	private static final String GET = "get";
 	
 	private SerializedDataUtils() {
 		// Intentional blank
@@ -78,15 +82,102 @@ public class SerializedDataUtils {
 	 */
 	public static OpenAPI parseOpenAPIContent(String openAPIContent) {
 		try {
+			String normalizedContent = normalizeOpenAPI32Content(openAPIContent);
 			ParseOptions parseOptions = new ParseOptions();
 			parseOptions.setResolve(true);
 			parseOptions.setResolveFully(true);
-			OpenAPI openAPI = new OpenAPIParser().readContents(openAPIContent, null, parseOptions).getOpenAPI();
+			OpenAPI openAPI = new OpenAPIParser().readContents(normalizedContent, null, parseOptions).getOpenAPI();
 			validateRequiredOpenAPIProperties(openAPI);
 			return openAPI;
 		} catch (Exception e) {
 			log.info("Error Parsing OpenAPI", e);
 			throw new ParseOpenAPIException(e.getMessage());
+		}
+	}
+
+	/**
+	 * Normalize OpenAPI 3.2 content so it can be parsed by the current parser stack.
+	 * This keeps the runtime compatible while parser-level 3.2 support evolves.
+	 * @param openAPIContent OpenAPI content as string
+	 * @return normalized content for parser consumption
+	 */
+	private static String normalizeOpenAPI32Content(String openAPIContent) {
+		try {
+			Yaml yaml = new Yaml();
+			Object parsed = yaml.load(openAPIContent);
+			if (!(parsed instanceof Map)) {
+				return openAPIContent;
+			}
+
+			Map<String, Object> root = (Map<String, Object>) parsed;
+			Object version = root.get("openapi");
+			if (!(version instanceof String) || !((String) version).startsWith("3.2")) {
+				return openAPIContent;
+			}
+
+			root.put("openapi", "3.1.0");
+			normalizeNode(root);
+			return yaml.dump(root);
+		} catch (Exception e) {
+			log.debug("OpenAPI 3.2 normalization skipped", e);
+			return openAPIContent;
+		}
+	}
+
+	/**
+	 * Recursively normalize known OpenAPI 3.2-only fields to 3.1-compatible fields.
+	 * @param node current structure node
+	 */
+	@SuppressWarnings("unchecked")
+	private static void normalizeNode(Object node) {
+		if (node instanceof Map) {
+			Map<String, Object> map = (Map<String, Object>) node;
+			normalizeParameterLocation(map);
+			normalizeTopLevel32Fields(map);
+			normalizeQueryOperation(map);
+			normalizeComponentsMediaTypes(map);
+			map.values().forEach(SerializedDataUtils::normalizeNode);
+		} else if (node instanceof List) {
+			((List<?>) node).forEach(SerializedDataUtils::normalizeNode);
+		}
+	}
+
+	private static void normalizeParameterLocation(Map<String, Object> map) {
+		Object inValue = map.get("in");
+		if (inValue instanceof String && "querystring".equalsIgnoreCase((String) inValue)) {
+			map.put("in", QUERY);
+		}
+	}
+
+	private static void normalizeTopLevel32Fields(Map<String, Object> map) {
+		if (map.containsKey("$self")) {
+			map.put("x-oas32-self", map.remove("$self"));
+		}
+
+		if (map.containsKey("additionalOperations")) {
+			map.put("x-oas32-additionalOperations", map.remove("additionalOperations"));
+		}
+	}
+
+	private static void normalizeQueryOperation(Map<String, Object> map) {
+		if (map.containsKey(QUERY)) {
+			Object queryOp = map.remove(QUERY);
+			if (!map.containsKey(GET)) {
+				map.put(GET, queryOp);
+			} else {
+				map.put("x-oas32-query-operation", queryOp);
+			}
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private static void normalizeComponentsMediaTypes(Map<String, Object> map) {
+		Object componentsObj = map.get("components");
+		if (componentsObj instanceof Map) {
+			Map<String, Object> components = (Map<String, Object>) componentsObj;
+			if (components.containsKey("mediaTypes")) {
+				components.put("x-oas32-mediaTypes", components.remove("mediaTypes"));
+			}
 		}
 	}
 

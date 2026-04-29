@@ -5,7 +5,7 @@
 
 Given an OpenAPI Specification (v3.0.x, v3.1.x, or v3.2.x), a SoapUI project is generated with the _requests_ for each resource operation and a _test suite_. The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
 
-**Supported OpenAPI Versions:** 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0+, 3.2.x (forward compatible)
+**Supported OpenAPI Versions:** 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0+, 3.2.x (officially released and supported)
 
 ### This repository is intended for :octocat: **community** use, it can be modified and adapted without commercial use. If you need a version, support or help for your **enterprise** or project, please contact us 📧 devrel@apiaddicts.org
 
@@ -197,7 +197,7 @@ OpenAPI2SoapUI supports 7 optional parameters to customize SoapUI project genera
 |[Hibernate Validator](https://hibernate.org/validator/)|Express validation rules in a standardized way using annotation-based constraints and benefit from transparent integration with a wide variety of frameworks.|
 |[Springdoc OpenAPI UI](https://springdoc.org/)|OpenAPI 3 Library for spring boot projects. Is based on swagger-ui, to display the OpenAPI description.|
 |[SoapUI core module](https://www.soapui.org/open-source/)|SoapUI is the world's leading Functional Testing tool for SOAP and REST testing.|
-|[Swagger Parser 2.1.19+](https://github.com/swagger-api/swagger-parser)|Parses OpenAPI definitions (3.0.x, 3.1.x) in JSON or YAML format into swagger-core representation as Java POJO. Supports JSON Schema 2020-12 and nullable types.|
+|[Swagger Parser 2.1.41+](https://github.com/swagger-api/swagger-parser)|Parses OpenAPI definitions (3.0.x, 3.1.x) in JSON or YAML format into swagger-core representation as Java POJO. OpenAPI 3.2 compatibility is provided in this project through normalization of 3.2-specific fields before parsing.|
 
 # 📑 Getting started 
 
@@ -399,7 +399,7 @@ OpenAPI2SoapUI supports multiple OpenAPI specification versions with full featur
 | **OpenAPI 3.0.2** | ✅ Fully Supported | All features |
 | **OpenAPI 3.0.3** | ✅ Fully Supported | All features |
 | **OpenAPI 3.1.0+** | ✅ Fully Supported | All features + JSON Schema 2020-12, nullable types |
-| **OpenAPI 3.2.x** | ✅ Forward Compatible | Ready for future releases |
+| **OpenAPI 3.2.x** | ✅ Fully Supported | Officially released and supported |
 
 ### Key Features by Version
 
@@ -432,7 +432,7 @@ For detailed information, see [OpenAPI Version Support Documentation](./OPENAPI_
 
 The project includes comprehensive test coverage with **88 tests** covering:
 - ✅ 7 feature options
-- ✅ OpenAPI 3.0.x and 3.1.x support
+- ✅ OpenAPI 3.0.x, 3.1.x, and 3.2.x support
 - ✅ All HTTP methods
 - ✅ Parameter handling (path, query, header)
 - ✅ Complex schema handling

@@ -267,10 +267,20 @@ public class SoapUIProject {
 				parameter.setStyle(ParameterStyle.HEADER);
 			} else if (openAPIParameter.getIn().equalsIgnoreCase(PATH)) {
 				parameter.setStyle(ParameterStyle.TEMPLATE);
-			} else if (openAPIParameter.getIn().equalsIgnoreCase(QUERY)) {
+			} else if (openAPIParameter.getIn().equalsIgnoreCase(QUERY) || openAPIParameter.getIn().equalsIgnoreCase("querystring")) {
 				parameter.setStyle(ParameterStyle.QUERY);
 			}
 		}
+	}
+
+	/**
+	 * Determine if an HTTP method should be skipped when readOnly option is enabled.
+	 * @param httpMethod OpenAPI HTTP method
+	 * @return true when method is considered write operation
+	 */
+	private boolean isWriteOperation(HttpMethod httpMethod) {
+		String method = httpMethod.name();
+		return method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE");
 	}
 
 	/**
@@ -361,15 +371,17 @@ public class SoapUIProject {
 		if (operations != null && !operations.isEmpty()) {
 			operations.forEach((httpMethod, operation) -> {
 				// Feature 1: readOnly
-				if (options.isReadOnly()) {
-					String method = httpMethod.name();
-					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
-						return;
-					}
+				if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+					return;
 				}
 
 				RestMethod restMethod = restResource.addNewMethod((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
-				restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
+				try {
+					restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
+				} catch (IllegalArgumentException ex) {
+					log.warn("HTTP method {} is not supported by current SoapUI version and will be skipped", httpMethod.name());
+					return;
+				}
 				restMethod.setDescription((operation.getDescription() != null) ? operation.getDescription() : "");
 
 				if (operation.getRequestBody() != null) {
@@ -438,11 +450,8 @@ public class SoapUIProject {
 		if (restResource != null) {
 			pathItem.readOperationsMap().forEach((httpMethod, operation) -> {
 				// Feature 1: readOnly
-				if (options.isReadOnly()) {
-					String method = httpMethod.name();
-					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
-						return;
-					}
+				if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+					return;
 				}
 
 				RestMethod restMethod = restResource.getRestMethodByName((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());

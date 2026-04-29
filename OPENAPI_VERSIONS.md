@@ -80,35 +80,36 @@ paths:
                     type: [string, null]  # Nullable in 3.1
 ```
 
-### OpenAPI 3.2.x ⏳
-- **Status:** Not yet released
-- **ETA:** Future (as of April 2026)
-- **Planned Support:** When OpenAPI 3.2 is officially released and swagger-parser is updated
-- **Expected Changes:** Refinements to JSON Schema integration, possible webhooks improvements
+### OpenAPI 3.2.x ✅
+- **Status:** Officially released and supported
+- **Release:** OpenAPI 3.2.0 (September 2025)
+- **Parser:** swagger-parser 2.1.41+ (current project version)
+- **Current Compatibility:** Parsed and generated through project-level normalization of 3.2-specific fields
+- **Highlights:** Additional HTTP method support, richer parameter modeling, and improved response metadata
 
 ## Version Detection
 
 The OpenAPI version is automatically detected from the `openapi` field in your spec:
 
 ```yaml
-openapi: 3.1.0  # Detected and handled appropriately
+openapi: 3.2.0  # Detected and handled appropriately
 ```
 
 No configuration is needed — just submit your spec and the tool will parse it correctly.
 
 ## Feature Compatibility Across Versions
 
-All openapi2soapui features work with both OpenAPI 3.0 and 3.1:
+All openapi2soapui features work with OpenAPI 3.0, 3.1, and 3.2:
 
-| Feature | 3.0.x | 3.1.x |
-|---------|-------|-------|
-| `readOnly` | ✅ | ✅ |
-| `serverPattern` | ✅ | ✅ |
-| `minimalEndpoints` | ✅ | ✅ |
-| `microcksHeaders` | ✅ | ✅ |
-| `generateOneOfAnyOf` | ✅ | ✅ |
-| `examples` | ✅ | ✅ |
-| `validateSchema` | ✅ | ✅ |
+| Feature | 3.0.x | 3.1.x | 3.2.x |
+|---------|-------|-------|-------|
+| `readOnly` | ✅ | ✅ | ✅ |
+| `serverPattern` | ✅ | ✅ | ✅ |
+| `minimalEndpoints` | ✅ | ✅ | ✅ |
+| `microcksHeaders` | ✅ | ✅ | ✅ |
+| `generateOneOfAnyOf` | ✅ | ✅ | ✅ |
+| `examples` | ✅ | ✅ | ✅ |
+| `validateSchema` | ✅ | ✅ | ✅ |
 
 ## Test Coverage
 
@@ -137,9 +138,9 @@ Comprehensive tests ensure compatibility across versions:
   - Arrays of objects
   - Schema composition (allOf)
   
-- **Forward Compatibility Tests:** 2 tests
-  - 3.2 status documentation
-  - Graceful handling of future versions
+- **OpenAPI 3.2.x Tests:** 2 tests
+  - Basic 3.2.0 parsing and generation
+  - Querystring parameter compatibility
 
 **Total:** 15 version support tests, all passing ✅
 
@@ -194,9 +195,10 @@ If you're migrating from 3.0 to 3.1:
 </dependency>
 ```
 
-- **Version 2.1.19+** supports OpenAPI 3.0.x and 3.1.x
+- **Version 2.1.41+** supports OpenAPI 3.0.x and 3.1.x natively
+- **OpenAPI 3.2.x** is supported in this project through a compatibility normalization layer
 - **Version 2.0.x** supports OpenAPI 3.0.x only (legacy)
-- **Version 3.x** (future) may support OpenAPI 3.2.x
+- **Version 2.1.x/3.x** can be evaluated for future parser enhancements
 
 ## Error Handling
 
@@ -217,26 +219,27 @@ If your OpenAPI spec has version-specific issues:
 
 ### "Parser returned null" error
 - Verify your YAML/JSON is valid
-- Ensure OpenAPI version is one of: 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0+
+- Ensure OpenAPI version is one of: 3.0.0, 3.0.1, 3.0.2, 3.0.3, 3.1.0+, 3.2.x
 - Check that required fields (info, paths) are present
 
 ### "Unknown schema property" errors
 - For OpenAPI 3.0: Some JSON Schema 2020-12 features not supported
-- For OpenAPI 3.1: Verify you're using 3.1-compatible schemas
+- For OpenAPI 3.1/3.2: Verify you're using 3.1+ compatible schemas
 
 ### Performance with large specs
-- Both 3.0 and 3.1 handle large specs efficiently
+- OpenAPI 3.0, 3.1, and 3.2 handle large specs efficiently
 - No performance difference between versions
 
 ## References
 
 - [OpenAPI 3.0 Specification](https://spec.openapis.org/oas/v3.0.3)
 - [OpenAPI 3.1 Specification](https://spec.openapis.org/oas/v3.1.0)
+- [OpenAPI 3.2 Specification](https://spec.openapis.org/oas/v3.2.0)
 - [swagger-parser Releases](https://github.com/swagger-api/swagger-parser/releases)
 - [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/json-schema-core.html)
 
 ---
 
-**Last Updated:** 2026-04-27  
-**Swagger Parser Version:** 2.1.19+  
+**Last Updated:** 2026-04-29  
+**Swagger Parser Version:** 2.1.41+ (with OpenAPI 3.2 normalization layer)  
 **Test Coverage:** 15 tests (100% passing)
