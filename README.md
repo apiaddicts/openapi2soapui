@@ -185,7 +185,7 @@ OpenAPI2SoapUI supports 7 optional parameters to customize SoapUI project genera
 
 |Technology                                               |Description                                                                   |
 |---------------------------------------------------------|------------------------------------------------------------------------------|
-|[JDK 17](https://docs.oracle.com/en/java/javase/17/)                       |Java Development Kit                                                          |
+|[JDK 21](https://docs.oracle.com/en/java/javase/21/)                       |Java Development Kit                                                          |
 |[Spring Boot 3.3.0](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
 |[Maven 3](https://maven.apache.org)                      |Dependency Management                                                         |
 |[Tomcat 10](https://tomcat.apache.org)                    |Server deploy WAR                                                             |
@@ -205,7 +205,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-* [JDK 17 Installation](https://docs.oracle.com/en/java/javase/17/install/overview-jdk-installation.html)
+* [JDK 21 Installation](https://docs.oracle.com/en/java/javase/21/install/overview-jdk-installation.html)
 * [Apache Maven Installation](https://maven.apache.org/install.html)
 * [Setting up Lombok](https://projectlombok.org/setup/overview)
   * [Eclipse and its offshoots](https://projectlombok.org/setup/eclipse)
