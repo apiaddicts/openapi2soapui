@@ -368,29 +368,34 @@ public class SoapUIProject {
 	 * @param operations list of path operations
 	 */
 	private void setResourceMethods(RestResource restResource, Map<HttpMethod, Operation> operations) {
-		if (operations != null && !operations.isEmpty()) {
-			operations.forEach((httpMethod, operation) -> {
-				// Feature 1: readOnly
-				if (options.isReadOnly() && isWriteOperation(httpMethod)) {
-					return;
-				}
-
-				RestMethod restMethod = restResource.addNewMethod((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
-				try {
-					restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
-				} catch (IllegalArgumentException ex) {
-					log.warn("HTTP method {} is not supported by current SoapUI version and will be skipped", httpMethod.name());
-					return;
-				}
-				restMethod.setDescription((operation.getDescription() != null) ? operation.getDescription() : "");
-
-				if (operation.getRequestBody() != null) {
-					setMethodRequestRepresentations(restMethod, operation.getRequestBody());
-				}
-
-				setMethodResponseRepresentations(restMethod, operation.getResponses());
-			});
+		if (operations == null || operations.isEmpty()) {
+			return;
 		}
+		operations.forEach((httpMethod, operation) -> configureResourceMethod(restResource, httpMethod, operation));
+	}
+
+	private void configureResourceMethod(RestResource restResource, HttpMethod httpMethod, Operation operation) {
+		// Feature 1: readOnly
+		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+			return;
+		}
+
+		String methodName = (operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name();
+		RestMethod restMethod = restResource.addNewMethod(methodName);
+		try {
+			restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
+		} catch (IllegalArgumentException ex) {
+			log.warn("HTTP method {} is not supported by current SoapUI version and will be skipped", httpMethod.name());
+			return;
+		}
+		String description = (operation.getDescription() != null) ? operation.getDescription() : "";
+		restMethod.setDescription(description);
+
+		if (operation.getRequestBody() != null) {
+			setMethodRequestRepresentations(restMethod, operation.getRequestBody());
+		}
+
+		setMethodResponseRepresentations(restMethod, operation.getResponses());
 	}
 
 	/**
@@ -446,38 +451,50 @@ public class SoapUIProject {
 	 */
 	private void setMethodsRequests(String pathName, PathItem pathItem) {
 		RestResource restResource = restService.getResourceByFullPath(restService.getBasePath() + pathName);
+		if (restResource == null) {
+			return;
+		}
+		pathItem.readOperationsMap().forEach((httpMethod, operation) ->
+			configureMethodRequest(restResource, pathItem, httpMethod, operation));
+	}
 
-		if (restResource != null) {
-			pathItem.readOperationsMap().forEach((httpMethod, operation) -> {
-				// Feature 1: readOnly
-				if (options.isReadOnly() && isWriteOperation(httpMethod)) {
-					return;
-				}
+	private void configureMethodRequest(RestResource restResource, PathItem pathItem, HttpMethod httpMethod, Operation operation) {
+		// Feature 1: readOnly
+		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+			return;
+		}
 
-				RestMethod restMethod = restResource.getRestMethodByName((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
-				if (restMethod == null) return;
-				RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
-				RestRequestConfig restRequestConfig = restRequest.getConfig();
+		String methodName = (operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name();
+		RestMethod restMethod = restResource.getRestMethodByName(methodName);
+		if (restMethod == null) {
+			return;
+		}
 
-				restRequestConfig.setOriginalUri(restService.getEndpoints()[0] + restResource.getFullPath(true));
-				setRequestAuthProfile(restRequestConfig);
-				setRequestJMSConfig(restRequestConfig);
+		RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
+		RestRequestConfig restRequestConfig = restRequest.getConfig();
 
-				restRequest.setEndpoint(restService.getEndpoints()[0]);
-				setRequestMediaType(restRequest, operation);
+		restRequestConfig.setOriginalUri(restService.getEndpoints()[0] + restResource.getFullPath(true));
+		setRequestAuthProfile(restRequestConfig);
+		setRequestJMSConfig(restRequestConfig);
 
-				setResourceParameters(restResource, pathItem.getParameters());
-				setMethodParameters(restMethod, operation.getParameters());
+		restRequest.setEndpoint(restService.getEndpoints()[0]);
+		setRequestMediaType(restRequest, operation);
 
-				if (operation.getRequestBody() != null) {
-					Content content = operation.getRequestBody().getContent();
-					if (content != null && !content.isEmpty()) {
-						setRequestContent(restRequest, content);
-					}
-				}
+		setResourceParameters(restResource, pathItem.getParameters());
+		setMethodParameters(restMethod, operation.getParameters());
 
-				setRequestHeaders(restRequest, operation);
-			});
+		applyRequestBodyContent(restRequest, operation);
+
+		setRequestHeaders(restRequest, operation);
+	}
+
+	private void applyRequestBodyContent(RestRequest restRequest, Operation operation) {
+		if (operation.getRequestBody() == null) {
+			return;
+		}
+		Content content = operation.getRequestBody().getContent();
+		if (content != null && !content.isEmpty()) {
+			setRequestContent(restRequest, content);
 		}
 	}
 

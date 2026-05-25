@@ -111,7 +111,7 @@ public class SerializedDataUtils {
 
 			Map<String, Object> root = (Map<String, Object>) parsed;
 			Object version = root.get("openapi");
-			if (!(version instanceof String) || !((String) version).startsWith("3.2")) {
+			if (!(version instanceof String versionStr) || !versionStr.startsWith("3.2")) {
 				return openAPIContent;
 			}
 
@@ -144,7 +144,7 @@ public class SerializedDataUtils {
 
 	private static void normalizeParameterLocation(Map<String, Object> map) {
 		Object inValue = map.get("in");
-		if (inValue instanceof String && "querystring".equalsIgnoreCase((String) inValue)) {
+		if (inValue instanceof String inStr && "querystring".equalsIgnoreCase(inStr)) {
 			map.put("in", QUERY);
 		}
 	}

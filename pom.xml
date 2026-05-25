@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>net.cloudappi</groupId>
 	<artifactId>openapi2soapui</artifactId>
-	<version>1.0.3</version>
+	<version>2.0.0</version>
 	<packaging>${packaging.type}</packaging>
 
 	<name>openapi2soapui</name>
@@ -59,7 +59,7 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>17</java.version>
 
-		<springdoc.version>2.0.2</springdoc.version>
+		<springdoc.version>2.6.0</springdoc.version>
 		<soapui.version>5.6.0</soapui.version>
 		<swagger-parser.version>2.1.42</swagger-parser.version>
 	</properties>

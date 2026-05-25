@@ -412,23 +412,25 @@ class OpenAPIVersionSupportTest {
 		@Test
 		@DisplayName("Should parse OpenAPI 3.2.0 spec")
 		void testParseOpenAPI320() throws IOException, XmlException, SoapUIException {
-			String spec = "openapi: 3.2.0\n" +
-				"info:\n" +
-				"  title: OpenAPI 32 API\n" +
-				"  version: 1.0.0\n" +
-				"servers:\n" +
-				"  - url: http://api.example.com/v1\n" +
-				"paths:\n" +
-				"  /status:\n" +
-				"    get:\n" +
-				"      operationId: getStatus\n" +
-				"      responses:\n" +
-				"        '200':\n" +
-				"          description: OK\n" +
-				"          content:\n" +
-				"            application/json:\n" +
-				"              schema:\n" +
-				"                type: object\n";
+			String spec = """
+				openapi: 3.2.0
+				info:
+				  title: OpenAPI 32 API
+				  version: 1.0.0
+				servers:
+				  - url: http://api.example.com/v1
+				paths:
+				  /status:
+				    get:
+				      operationId: getStatus
+				      responses:
+				        '200':
+				          description: OK
+				          content:
+				            application/json:
+				              schema:
+				                type: object
+				""";
 
 			OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(spec);
 			assertNotNull(openAPI, "OpenAPI 3.2.0 spec should parse successfully");
@@ -445,27 +447,29 @@ class OpenAPIVersionSupportTest {
 		@Test
 		@DisplayName("Should handle OpenAPI 3.2 querystring parameter")
 		void testOpenAPI32QuerystringParameterSupport() throws IOException, XmlException, SoapUIException {
-			String spec = "openapi: 3.2.0\n" +
-				"info:\n" +
-				"  title: Querystring API\n" +
-				"  version: 1.0.0\n" +
-				"servers:\n" +
-				"  - url: http://api.example.com\n" +
-				"paths:\n" +
-				"  /test:\n" +
-				"    get:\n" +
-				"      operationId: testQuerystring\n" +
-				"      parameters:\n" +
-				"        - name: rawQuery\n" +
-				"          in: querystring\n" +
-				"          required: false\n" +
-				"          content:\n" +
-				"            application/x-www-form-urlencoded:\n" +
-				"              schema:\n" +
-				"                type: string\n" +
-				"      responses:\n" +
-				"        '200':\n" +
-				"          description: OK\n";
+			String spec = """
+				openapi: 3.2.0
+				info:
+				  title: Querystring API
+				  version: 1.0.0
+				servers:
+				  - url: http://api.example.com
+				paths:
+				  /test:
+				    get:
+				      operationId: testQuerystring
+				      parameters:
+				        - name: rawQuery
+				          in: querystring
+				          required: false
+				          content:
+				            application/x-www-form-urlencoded:
+				              schema:
+				                type: string
+				      responses:
+				        '200':
+				          description: OK
+				""";
 
 			OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(spec);
 			assertNotNull(openAPI, "OpenAPI 3.2 with querystring parameter should parse successfully");
