@@ -371,10 +371,19 @@ public class SoapUIProject {
 		if (operations == null || operations.isEmpty()) {
 			return;
 		}
-		operations.forEach((httpMethod, operation) -> configureResourceMethod(restResource, httpMethod, operation));
+		operations.forEach((httpMethod, operation) -> setResourceMethod(restResource, httpMethod, operation));
 	}
 
-	private void configureResourceMethod(RestResource restResource, HttpMethod httpMethod, Operation operation) {
+	/**
+	 * Set Resource Method
+	 * Add a single Method to Resource from an OpenAPI Operation
+	 * Skip write operations if readOnly mode is enabled
+	 * Skip method if the HTTP method is not supported by current SoapUI version
+	 * @param restResource instance of Resource
+	 * @param httpMethod OpenAPI HTTP method
+	 * @param operation OpenAPI Operation
+	 */
+	private void setResourceMethod(RestResource restResource, HttpMethod httpMethod, Operation operation) {
 		// Feature 1: readOnly
 		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
 			return;
@@ -455,10 +464,19 @@ public class SoapUIProject {
 			return;
 		}
 		pathItem.readOperationsMap().forEach((httpMethod, operation) ->
-			configureMethodRequest(restResource, pathItem, httpMethod, operation));
+			setMethodRequest(restResource, pathItem, httpMethod, operation));
 	}
 
-	private void configureMethodRequest(RestResource restResource, PathItem pathItem, HttpMethod httpMethod, Operation operation) {
+	/**
+	 * Set Method Request
+	 * Find the Method matching the Operation and create/configure its Request
+	 * Skip write operations if readOnly mode is enabled
+	 * @param restResource instance of Resource
+	 * @param pathItem instance of OpenAPI Path
+	 * @param httpMethod OpenAPI HTTP method
+	 * @param operation OpenAPI Operation
+	 */
+	private void setMethodRequest(RestResource restResource, PathItem pathItem, HttpMethod httpMethod, Operation operation) {
 		// Feature 1: readOnly
 		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
 			return;
@@ -483,12 +501,18 @@ public class SoapUIProject {
 		setResourceParameters(restResource, pathItem.getParameters());
 		setMethodParameters(restMethod, operation.getParameters());
 
-		applyRequestBodyContent(restRequest, operation);
+		setRequestBodyContent(restRequest, operation);
 
 		setRequestHeaders(restRequest, operation);
 	}
 
-	private void applyRequestBodyContent(RestRequest restRequest, Operation operation) {
+	/**
+	 * Set Request Body Content
+	 * Extract the Operation Request Body content and set it on the Request when present
+	 * @param restRequest instance of Method Request
+	 * @param operation OpenAPI Operation
+	 */
+	private void setRequestBodyContent(RestRequest restRequest, Operation operation) {
 		if (operation.getRequestBody() == null) {
 			return;
 		}
