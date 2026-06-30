@@ -40,4 +40,7 @@ public class SoapUIProjectRequest {
 
 	@JsonProperty("readOnly")
 	private Boolean readOnly;
+
+	@JsonProperty("serverPattern")
+	private String serverPattern;
 }

@@ -460,6 +460,10 @@ components:
           type: boolean
           description: If true, only GET and OPTIONS test cases are generated. POST, PUT, PATCH and DELETE are excluded.
           example: false
+        serverPattern:
+          type: string
+          description: Pattern to select the OpenAPI server used as endpoint. Wrap the substring with % (e.g. %dev%). If no server matches, the first server is used.
+          example: "%dev%"
     Headers:
       type: array
       description: List of optionals headers. This apply in all resources

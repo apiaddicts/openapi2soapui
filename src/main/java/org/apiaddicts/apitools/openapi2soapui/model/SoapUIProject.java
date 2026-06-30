@@ -20,10 +20,12 @@ import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.net.MalformedURLException;
@@ -152,7 +154,7 @@ public class SoapUIProject {
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -179,7 +181,7 @@ public class SoapUIProject {
 		restService = (RestService) project.addNewInterface(apiName, RestServiceFactory.REST_TYPE);
 		restService.setDescription(openAPI.getInfo().getDescription());
 		
-		setRestServiceEndpoints(openAPI.getServers());
+		setRestServiceEndpoints(openAPI.getServers(), serverPattern);
 		setRestServiceResources(openAPI.getPaths());
 		setTestCases();
 	}
@@ -198,8 +200,19 @@ public class SoapUIProject {
 	 * If REST Service has not basePath, extract from first server item and set it 
 	 * @param servers list of servers in OpenAPI
 	 */
-	private void setRestServiceEndpoints(List<Server> servers) {
-		for (Server server : servers) {
+	private void setRestServiceEndpoints(List<Server> servers, String serverPattern) {
+		if (servers == null || servers.isEmpty()) return;
+		List<Server> filtered = servers;
+		if (serverPattern != null && !serverPattern.isBlank()) {
+			String cleanPattern = serverPattern.replace("%", "");
+			Optional<Server> match = servers.stream()
+					.filter(s -> s.getUrl().contains(cleanPattern))
+					.findFirst();
+			filtered = match.isPresent()
+					? Collections.singletonList(match.get())
+					: Collections.singletonList(servers.get(0));
+		}
+		for (Server server : filtered) {
 			String serverUrl = server.getUrl();
 			try {
 				URL url = new URL(serverUrl);
