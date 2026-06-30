@@ -126,6 +126,10 @@ public class SoapUIProject {
 	 * Test case names from request body
 	 */
 	private Set<String> testCaseNames;
+	/**
+	 * When true, only GET and OPTIONS test cases are generated
+	 */
+	private boolean readOnly;
 	
 	/**
 	 * SoapUIProject constructor
@@ -143,22 +147,25 @@ public class SoapUIProject {
 	 * @param oAuth2Profiles authentication profiles from request body
 	 * @param headers from request body
 	 * @param testCaseNames from request body
+	 * @param readOnly if true, only GET and OPTIONS test cases are generated
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
-		
+
 		this.apiVersion = openAPI.getInfo().getVersion();
-		
+
 		if (testCaseNames == null || testCaseNames.isEmpty()) {
 			this.testCaseNames = new HashSet<>(Arrays.asList(SUCCESS_TEST_CASE));
 		} else {
 			this.testCaseNames = testCaseNames;
 		}
+
+		this.readOnly = Boolean.TRUE.equals(readOnly);
 		
 		createTempFile();
 		
@@ -695,6 +702,7 @@ public class SoapUIProject {
 				if (methods != null && !methods.isEmpty()) {
 					methods.forEach(restMethod -> {
 						String method = restMethod.getMethod().name();
+						if (readOnly && !"GET".equals(method) && !"OPTIONS".equals(method)) return;
 						String testSuiteName = restResource.getPath() + "_" + method + "_" + SUITE_SUFFIX;
 						WsdlTestSuite testSuite = project.addNewTestSuite(testSuiteName);
 						for (String testCaseNameItem : testCaseNames) {

@@ -56,7 +56,9 @@ paths:
 
         Additionally, it is possible to add custom headers to each of the requests, defining a list of key-value elements with the name "headers" as part of the request body, where key indicates the name of the header and value the value of the header.
 
-        The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.          
+        Additionally, when the **readOnly** flag is set to true, only GET and OPTIONS test cases are generated; POST, PUT, PATCH and DELETE operations are excluded.
+
+        The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
           Information necessary for the generation of the SoapUI Project.
@@ -67,6 +69,7 @@ paths:
           - openApiSpec: Base-64 encoded OpenAPI Spec
           - testCaseNames: List with the names of the test cases
           - headers: List of custom headers
+          - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
         content:
           aplication/json:
             schema:
@@ -453,6 +456,10 @@ components:
             example: Success
         headers:
           $ref: '#/components/schemas/Headers'
+        readOnly:
+          type: boolean
+          description: If true, only GET and OPTIONS test cases are generated. POST, PUT, PATCH and DELETE are excluded.
+          example: false
     Headers:
       type: array
       description: List of optionals headers. This apply in all resources

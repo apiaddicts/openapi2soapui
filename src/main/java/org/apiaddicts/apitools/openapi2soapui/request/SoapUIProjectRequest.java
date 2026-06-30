@@ -37,4 +37,7 @@ public class SoapUIProjectRequest {
 	@Valid
 	@JsonProperty("headers")
 	private List<Header> headers;
+
+	@JsonProperty("readOnly")
+	private Boolean readOnly;
 }

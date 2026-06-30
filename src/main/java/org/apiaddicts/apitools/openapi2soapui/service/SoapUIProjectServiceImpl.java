@@ -18,8 +18,8 @@ public class SoapUIProjectServiceImpl implements SoapUIProjectService {
 
 	@Override
 	public SoapUIProject createSoapUIProject(String apiName, OpenAPI openAPI, List<OAuth2Profile> credentials, List<Header> headers,
-			Set<String> testCaseNames) throws IOException, XmlException, SoapUIException {
-		return new SoapUIProject(apiName, openAPI, credentials, headers, testCaseNames);
+			Set<String> testCaseNames, Boolean readOnly) throws IOException, XmlException, SoapUIException {
+		return new SoapUIProject(apiName, openAPI, credentials, headers, testCaseNames, readOnly);
 	}
 	
 }
