@@ -36,4 +36,6 @@ public class Constants {
 	public static final String WRONG_STATUS_CODE = "400";
 	public static final String QUERY_PARAM_VARIANT_PREFIX = "queryString ";
 	public static final String QUERY_PARAM_VARIANT_WRONG_SUFFIX = " wrong";
+
+	public static final String MICROCKS_RESPONSE_NAME_HEADER = "X-Microcks-Response-Name";
 }

@@ -36,7 +36,8 @@ public class SoapUIProjectController {
 		}
     	SoapUIProject soapUIProject = soapUIProjectService.createSoapUIProject(newSoapUIProject.getApiName(), openAPI,
     			newSoapUIProject.getOAuth2Profiles(), newSoapUIProject.getHeaders(), newSoapUIProject.getTestCaseNames(),
-    			newSoapUIProject.getReadOnly(), newSoapUIProject.getServerPattern(), newSoapUIProject.getMinimalEndpoints());
+    			newSoapUIProject.getReadOnly(), newSoapUIProject.getServerPattern(), newSoapUIProject.getMinimalEndpoints(),
+    			newSoapUIProject.getMicrocksHeaders());
     	String projectContent = soapUIProject.getFileContent();
     	soapUIProject.deleteTemporaryFile();
     	return projectContent;

@@ -61,6 +61,8 @@ paths:
 
         Additionally, when the **minimalEndpoints** flag is set to false (the default), for each optional query parameter of an operation, two extra test cases are generated: one with a valid value (asserting HTTP status 200) and one with an invalid value (asserting HTTP status 400). Set to true to only generate the testCaseNames-based test cases.
 
+        Additionally, when the **microcksHeaders** flag is set to true, an X-Microcks-Response-Name header is added to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined.
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -74,6 +76,7 @@ paths:
           - headers: List of custom headers
           - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
           - minimalEndpoints: Boolean flag; when false (default), also generates a valid/invalid test case pair per optional query parameter
+          - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
         content:
           aplication/json:
             schema:
@@ -467,6 +470,10 @@ components:
         minimalEndpoints:
           type: boolean
           description: If false (default), generates 2 additional test cases per optional query parameter — one with a valid value (expects 200) and one with an invalid value (expects 400). If true, only testCaseNames-based test cases are generated.
+          example: false
+        microcksHeaders:
+          type: boolean
+          description: If true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined.
           example: false
         serverPattern:
           type: string

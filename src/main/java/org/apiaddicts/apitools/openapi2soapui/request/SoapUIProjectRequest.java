@@ -46,4 +46,7 @@ public class SoapUIProjectRequest {
 
 	@JsonProperty("minimalEndpoints")
 	private Boolean minimalEndpoints;
+
+	@JsonProperty("microcksHeaders")
+	private Boolean microcksHeaders;
 }

@@ -18,6 +18,7 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.WRONG_STATUS_CODE;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_WRONG_SUFFIX;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MICROCKS_RESPONSE_NAME_HEADER;
 
 import java.io.File;
 import java.io.IOException;
@@ -147,6 +148,10 @@ public class SoapUIProject {
 	 */
 	private boolean minimalEndpoints;
 	/**
+	 * When true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
+	 */
+	private boolean microcksHeaders;
+	/**
 	 * OpenAPI Operation for each generated Method, keyed by a stable path+httpMethod key (not by RestMethod
 	 * object identity, which is not guaranteed stable across SoapUI accessor calls), used to build optional
 	 * query parameter variant requests
@@ -171,11 +176,12 @@ public class SoapUIProject {
 	 * @param testCaseNames from request body
 	 * @param readOnly if true, only GET and OPTIONS test cases are generated
 	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
+	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -190,6 +196,7 @@ public class SoapUIProject {
 
 		this.readOnly = Boolean.TRUE.equals(readOnly);
 		this.minimalEndpoints = Boolean.TRUE.equals(minimalEndpoints);
+		this.microcksHeaders = Boolean.TRUE.equals(microcksHeaders);
 
 		createTempFile();
 		
@@ -467,7 +474,7 @@ public class SoapUIProject {
 					}
 				}
 				
-				setRequestHeaders(restRequest);
+				setRequestHeaders(restRequest, operation);
 			});
 		}
 	}
@@ -475,14 +482,62 @@ public class SoapUIProject {
 	/**
 	 * Set Request Headers
 	 * Iterate headers received in request body and set to Request
+	 * If microcksHeaders is true, additionally set the X-Microcks-Response-Name header
 	 * @param restRequest instance of Method Request
+	 * @param operation instance of OpenAPI Operation, used to resolve the Microcks response example name
 	 */
-	private void setRequestHeaders(RestRequest restRequest) {
+	private void setRequestHeaders(RestRequest restRequest, Operation operation) {
+		StringToStringMap requestHeaders = new StringToStringMap();
 		if (headers != null && !headers.isEmpty()) {
-			StringToStringMap requestHeaders = new StringToStringMap();
 			headers.forEach(header -> requestHeaders.put(header.getKey(), header.getValue()));
+		}
+		if (microcksHeaders && !requestHeaders.containsKey(MICROCKS_RESPONSE_NAME_HEADER)) {
+			String exampleName = getMicrocksExampleName(operation);
+			requestHeaders.put(MICROCKS_RESPONSE_NAME_HEADER, exampleName != null ? exampleName : DEFAULT);
+		}
+		if (!requestHeaders.isEmpty()) {
 			restRequest.setRequestHeaders(requestHeaders);
 		}
+	}
+
+	/**
+	 * Get Microcks Example Name
+	 * Look for the first named example defined on the operation's responses, checking 2xx responses in
+	 * spec declaration order first, then the "default" response, and every media type within each response
+	 * @param operation instance of OpenAPI Operation
+	 * @return example name, or null if the operation has no response example
+	 */
+	private String getMicrocksExampleName(Operation operation) {
+		if (operation.getResponses() == null) return null;
+		List<ApiResponse> candidateResponses = new ArrayList<>();
+		operation.getResponses().forEach((code, response) -> {
+			if (code.startsWith("2")) candidateResponses.add(response);
+		});
+		if (operation.getResponses().getDefault() != null) {
+			candidateResponses.add(operation.getResponses().getDefault());
+		}
+
+		for (ApiResponse response : candidateResponses) {
+			String exampleName = getFirstExampleName(response);
+			if (exampleName != null) return exampleName;
+		}
+		return null;
+	}
+
+	/**
+	 * Get First Example Name
+	 * Iterate every media type of the Response content and return the key of the first non-empty examples map
+	 * @param response instance of OpenAPI Response
+	 * @return example name, or null if no media type of this response has named examples
+	 */
+	private String getFirstExampleName(ApiResponse response) {
+		if (response == null || response.getContent() == null || response.getContent().isEmpty()) return null;
+		for (MediaType mediaType : response.getContent().values()) {
+			if (mediaType.getExamples() != null && !mediaType.getExamples().isEmpty()) {
+				return mediaType.getExamples().entrySet().iterator().next().getKey();
+			}
+		}
+		return null;
 	}
 
 	/**
