@@ -63,6 +63,8 @@ paths:
 
         Additionally, when the **microcksHeaders** flag is set to true, an X-Microcks-Response-Name header is added to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined.
 
+        Additionally, when the **generateOneOfAnyOf** flag is set to true, oneOf/anyOf schemas in the request body are resolved to their first candidate schema when generating the example body (default: unresolved/omitted). allOf schemas are always merged into a single object regardless of this flag.
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -77,6 +79,7 @@ paths:
           - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
           - minimalEndpoints: Boolean flag; when false (default), also generates a valid/invalid test case pair per optional query parameter
           - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
+          - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies. allOf is always merged regardless of this flag
         content:
           aplication/json:
             schema:
@@ -474,6 +477,10 @@ components:
         microcksHeaders:
           type: boolean
           description: If true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined.
+          example: false
+        generateOneOfAnyOf:
+          type: boolean
+          description: If true, resolves oneOf/anyOf schemas to their first candidate schema when generating the example request body. allOf schemas are always merged into a single object regardless of this flag.
           example: false
         serverPattern:
           type: string

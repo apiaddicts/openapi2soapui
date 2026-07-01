@@ -49,4 +49,7 @@ public class SoapUIProjectRequest {
 
 	@JsonProperty("microcksHeaders")
 	private Boolean microcksHeaders;
+
+	@JsonProperty("generateOneOfAnyOf")
+	private Boolean generateOneOfAnyOf;
 }

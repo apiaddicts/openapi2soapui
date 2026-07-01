@@ -152,6 +152,11 @@ public class SoapUIProject {
 	 */
 	private boolean microcksHeaders;
 	/**
+	 * When true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies.
+	 * allOf schemas are always merged into a single object, regardless of this flag.
+	 */
+	private boolean generateOneOfAnyOf;
+	/**
 	 * OpenAPI Operation for each generated Method, keyed by a stable path+httpMethod key (not by RestMethod
 	 * object identity, which is not guaranteed stable across SoapUI accessor calls), used to build optional
 	 * query parameter variant requests
@@ -177,11 +182,12 @@ public class SoapUIProject {
 	 * @param readOnly if true, only GET and OPTIONS test cases are generated
 	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
+	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -197,6 +203,7 @@ public class SoapUIProject {
 		this.readOnly = Boolean.TRUE.equals(readOnly);
 		this.minimalEndpoints = Boolean.TRUE.equals(minimalEndpoints);
 		this.microcksHeaders = Boolean.TRUE.equals(microcksHeaders);
+		this.generateOneOfAnyOf = Boolean.TRUE.equals(generateOneOfAnyOf);
 
 		createTempFile();
 		
@@ -574,7 +581,7 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private Object getRequestExample(MediaType mediaType, RefResolver refResolver) {
 		Object example;
-		Schema<?> schema = refResolver.resolveSchema(mediaType.getSchema());
+		Schema<?> schema = resolveComposedSchema(refResolver.resolveSchema(mediaType.getSchema()), refResolver);
 		if (mediaType.getExample() != null) {
 			example = mediaType.getExample();
 		} else if (mediaType.getExamples() != null && !mediaType.getExamples().isEmpty()) {
@@ -624,8 +631,9 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {		
 		Object example = property.getExample();
-		
+
 		if (example == null) {
+			property = resolveComposedSchema(property, refResolver);
 			if (property instanceof ObjectSchema) {
 				example = iterateProperties(((ObjectSchema) property).getProperties(), refResolver);
 			} else if (property instanceof ArraySchema) {
@@ -655,6 +663,50 @@ public class SoapUIProject {
 		}
 		
 		return example;
+	}
+
+	/**
+	 * Resolve oneOf/anyOf/allOf composition on a schema
+	 * allOf is always merged into a single object schema (properties/required of every member), regardless of generateOneOfAnyOf
+	 * When generateOneOfAnyOf is true, oneOf/anyOf are resolved to their first candidate schema
+	 * Loops to also resolve composition nested inside a merged/chosen candidate, bounded to avoid runaway recursion
+	 * @param schema to resolve
+	 * @param refResolver instance of RefResolver
+	 * @return resolved schema, or the original schema unchanged if it has no applicable composition
+	 */
+	@SuppressWarnings("rawtypes")
+	private Schema resolveComposedSchema(Schema schema, RefResolver refResolver) {
+		final int MAX_ITERATIONS = 10;
+		for (int i = 0; i < MAX_ITERATIONS; i++) {
+			Schema resolved = schema;
+			List<Schema> allOf = schema.getAllOf();
+			if (allOf != null && !allOf.isEmpty()) {
+				ObjectSchema merged = new ObjectSchema();
+				Map<String, Schema> mergedProperties = new HashMap<>();
+				List<String> mergedRequired = new ArrayList<>();
+				for (Schema member : allOf) {
+					Schema resolvedMember = refResolver.resolveSchema(member);
+					if (resolvedMember.getProperties() != null) {
+						mergedProperties.putAll(resolvedMember.getProperties());
+					}
+					if (resolvedMember.getRequired() != null) {
+						mergedRequired.addAll(resolvedMember.getRequired());
+					}
+				}
+				merged.setProperties(mergedProperties);
+				merged.setRequired(mergedRequired);
+				resolved = merged;
+			} else if (generateOneOfAnyOf && schema.getOneOf() != null && !schema.getOneOf().isEmpty()) {
+				resolved = refResolver.resolveSchema((Schema) schema.getOneOf().get(0));
+			} else if (generateOneOfAnyOf && schema.getAnyOf() != null && !schema.getAnyOf().isEmpty()) {
+				resolved = refResolver.resolveSchema((Schema) schema.getAnyOf().get(0));
+			}
+			if (resolved == schema) {
+				return resolved;
+			}
+			schema = resolved;
+		}
+		return schema;
 	}
 
 	/**
