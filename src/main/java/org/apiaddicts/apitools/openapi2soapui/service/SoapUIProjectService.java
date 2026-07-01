@@ -12,5 +12,5 @@ import org.apiaddicts.apitools.openapi2soapui.request.Header;
 import org.apache.xmlbeans.XmlException;
 
 public interface SoapUIProjectService {
-    SoapUIProject createSoapUIProject(String apiName, OpenAPI openAPI, List<OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCases, Boolean readOnly, String serverPattern) throws IOException, XmlException, SoapUIException;
+    SoapUIProject createSoapUIProject(String apiName, OpenAPI openAPI, List<OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCases, Boolean readOnly, String serverPattern, Boolean minimalEndpoints) throws IOException, XmlException, SoapUIException;
 }

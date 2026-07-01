@@ -43,4 +43,7 @@ public class SoapUIProjectRequest {
 
 	@JsonProperty("serverPattern")
 	private String serverPattern;
+
+	@JsonProperty("minimalEndpoints")
+	private Boolean minimalEndpoints;
 }

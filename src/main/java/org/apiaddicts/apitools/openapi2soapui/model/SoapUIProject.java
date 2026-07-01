@@ -13,6 +13,11 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.DEFAULT;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.JSON;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_TEST_CASE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALID_HTTP_STATUS_CODES_ASSERTION;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_STATUS_CODE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.WRONG_STATUS_CODE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_PREFIX;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_WRONG_SUFFIX;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +65,10 @@ import com.eviware.soapui.impl.rest.support.RestParamsPropertyHolder.ParameterSt
 import com.eviware.soapui.impl.wsdl.WsdlProject;
 import com.eviware.soapui.impl.wsdl.WsdlTestSuite;
 import com.eviware.soapui.impl.wsdl.testcase.WsdlTestCase;
+import com.eviware.soapui.impl.wsdl.teststeps.RestTestRequestStep;
+import com.eviware.soapui.impl.wsdl.teststeps.WsdlTestStep;
 import com.eviware.soapui.impl.wsdl.teststeps.registry.RestRequestStepFactory;
+import com.eviware.soapui.security.assertion.ValidHttpStatusCodesAssertion;
 import com.eviware.soapui.support.SoapUIException;
 import com.eviware.soapui.support.types.StringToStringMap;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -88,6 +97,7 @@ import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
+import org.apiaddicts.apitools.openapi2soapui.util.QueryParamExampleUtils;
 import org.apiaddicts.apitools.openapi2soapui.util.RefResolver;
 
 /**
@@ -132,7 +142,17 @@ public class SoapUIProject {
 	 * When true, only GET and OPTIONS test cases are generated
 	 */
 	private boolean readOnly;
-	
+	/**
+	 * When false, an extra valid/invalid test case pair is generated for each optional query parameter
+	 */
+	private boolean minimalEndpoints;
+	/**
+	 * OpenAPI Operation for each generated Method, keyed by a stable path+httpMethod key (not by RestMethod
+	 * object identity, which is not guaranteed stable across SoapUI accessor calls), used to build optional
+	 * query parameter variant requests
+	 */
+	private Map<String, Operation> operationByMethodKey = new HashMap<>();
+
 	/**
 	 * SoapUIProject constructor
 	 * Set default test case names if testCaseNames is null or empty
@@ -150,11 +170,12 @@ public class SoapUIProject {
 	 * @param headers from request body
 	 * @param testCaseNames from request body
 	 * @param readOnly if true, only GET and OPTIONS test cases are generated
+	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -168,7 +189,8 @@ public class SoapUIProject {
 		}
 
 		this.readOnly = Boolean.TRUE.equals(readOnly);
-		
+		this.minimalEndpoints = Boolean.TRUE.equals(minimalEndpoints);
+
 		createTempFile();
 		
 		project = new WsdlProject();
@@ -424,6 +446,7 @@ public class SoapUIProject {
 			pathItem.readOperationsMap().forEach((httpMethod, operation) -> {
 				RestMethod restMethod = restResource.getRestMethodByName((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
 				if (restMethod == null) return;
+				operationByMethodKey.put(methodKey(restResource.getPath(), httpMethod.name()), operation);
 				RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
 				RestRequestConfig restRequestConfig = restRequest.getConfig();
 						
@@ -724,10 +747,115 @@ public class SoapUIProject {
 							TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 							testCase.addTestStep(ejecutionTestStepConfig);
 						}
+						if (!minimalEndpoints) {
+							addQueryParamVariantTestCases(restResource, restMethod, testSuite);
+						}
 					});
 				}
 			});
 		}
+	}
+
+	/**
+	 * Add Query Param Variant Test Cases
+	 * For each optional query parameter of the Operation bound to this Method, add a valid and an invalid
+	 * test case, each asserting the corresponding HTTP status code (200 or 400)
+	 * @param restResource instance of Resource owning the Method
+	 * @param restMethod instance of Method to generate variants for
+	 * @param testSuite Test Suite to add the variant Test Cases to
+	 */
+	private void addQueryParamVariantTestCases(RestResource restResource, RestMethod restMethod, WsdlTestSuite testSuite) {
+		Operation operation = operationByMethodKey.get(methodKey(restResource.getPath(), restMethod.getMethod().name()));
+		if (operation == null) return;
+		List<Parameter> queryParams = getQueryParameters(operation.getParameters());
+		RestRequest defaultRequest = restMethod.getRequestByName(DEFAULT_REQUEST_NAME);
+		getOptionalParameters(queryParams).forEach(param -> {
+			addQueryParamVariantTestCase(restMethod, defaultRequest, testSuite, queryParams, param, false);
+			addQueryParamVariantTestCase(restMethod, defaultRequest, testSuite, queryParams, param, true);
+		});
+	}
+
+	/**
+	 * Build a stable key identifying a Method within the SoapUI Project, independent of object identity,
+	 * to bridge OpenAPI Operation data between setMethodsRequests and setTestCases
+	 * @param path Resource path
+	 * @param httpMethod HTTP method name
+	 * @return composite key
+	 */
+	private String methodKey(String path, String httpMethod) {
+		return path + "#" + httpMethod;
+	}
+
+	/**
+	 * Get Query Parameters
+	 * Filter OpenAPI Parameters to keep only the ones in the query
+	 * @param parameters list of OpenAPI Parameters to filter
+	 * @return list of query Parameters
+	 */
+	private List<Parameter> getQueryParameters(List<Parameter> parameters) {
+		if (parameters == null) return Collections.emptyList();
+		return parameters.stream()
+				.filter(param -> QUERY.equalsIgnoreCase(param.getIn()))
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * Get Optional Parameters
+	 * Filter Parameters to keep only the ones that are not required
+	 * @param parameters list of Parameters to filter
+	 * @return list of optional Parameters
+	 */
+	private List<Parameter> getOptionalParameters(List<Parameter> parameters) {
+		return parameters.stream()
+				.filter(param -> !Boolean.TRUE.equals(param.getRequired()))
+				.collect(Collectors.toList());
+	}
+
+	/**
+	 * Add Query Param Variant Test Case
+	 * Clone the default Request (carrying over its endpoint, auth, media type, body and headers), then
+	 * explicitly set every query parameter to a valid value, except the targeted parameter which gets
+	 * an invalid value on the "wrong" variant
+	 * Add a Test Case with this Request and a "Valid HTTP Status Codes" assertion for the expected status code
+	 * @param restMethod instance of Method to add the variant Request to
+	 * @param defaultRequest the Method's default Request, cloned as the base for the variant Request
+	 * @param testSuite Test Suite to add the variant Test Case to
+	 * @param queryParams all query Parameters of the Operation, so every one can be given an explicit valid value
+	 * @param targetParam optional query Parameter being varied
+	 * @param wrong when true, generates the invalid-value variant (expects 400), otherwise the valid-value variant (expects 200)
+	 */
+	private void addQueryParamVariantTestCase(RestMethod restMethod, RestRequest defaultRequest, WsdlTestSuite testSuite,
+			List<Parameter> queryParams, Parameter targetParam, boolean wrong) {
+		String requestName = QUERY_PARAM_VARIANT_PREFIX + targetParam.getName() + (wrong ? QUERY_PARAM_VARIANT_WRONG_SUFFIX : "");
+		RestRequest variantRequest = restMethod.cloneRequest(defaultRequest, requestName);
+
+		queryParams.forEach(param -> {
+			boolean isTarget = param.getName().equals(targetParam.getName());
+			String value = (isTarget && wrong) ? QueryParamExampleUtils.invalidValue(param.getSchema()) : getValidQueryParamValue(param);
+			variantRequest.setPropertyValue(param.getName(), value);
+		});
+
+		String testCaseName = requestName + "_" + CASE_SUFFIX;
+		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
+		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
+		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
+
+		ValidHttpStatusCodesAssertion assertion = (ValidHttpStatusCodesAssertion)
+				((RestTestRequestStep) testStep).addAssertion(VALID_HTTP_STATUS_CODES_ASSERTION);
+		assertion.setCodes(wrong ? WRONG_STATUS_CODE : SUCCESS_STATUS_CODE);
+	}
+
+	/**
+	 * Get Valid Query Param Value
+	 * Prefer the OpenAPI Parameter example (example/examples/x-example), falling back to a type-aware
+	 * generic value (honoring enum values when present) when no example is defined
+	 * @param param OpenAPI Parameter to compute a valid value for
+	 * @return valid value as String
+	 */
+	private String getValidQueryParamValue(Parameter param) {
+		Object example = getParameterExample(param);
+		if (example != null && !example.toString().isBlank()) return example.toString();
+		return QueryParamExampleUtils.validValue(param.getSchema());
 	}
 
 	/**

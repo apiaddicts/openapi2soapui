@@ -30,4 +30,10 @@ public class Constants {
 	public static final String HEADERS_KEY = "headers";
 	public static final String AUTHENTICATION_PROFILES_KEY = "oAuth2Profiles";
 	public static final String TEST_CASE_NAMES_KEY = "testCaseNames";
+
+	public static final String VALID_HTTP_STATUS_CODES_ASSERTION = "Valid HTTP Status Codes";
+	public static final String SUCCESS_STATUS_CODE = "200";
+	public static final String WRONG_STATUS_CODE = "400";
+	public static final String QUERY_PARAM_VARIANT_PREFIX = "queryString ";
+	public static final String QUERY_PARAM_VARIANT_WRONG_SUFFIX = " wrong";
 }
