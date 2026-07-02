@@ -37,11 +37,21 @@ public final class QueryParamExampleUtils {
 		if (schema.getExample() != null) return schema.getExample().toString();
 		if (schema.getEnum() != null && !schema.getEnum().isEmpty()) return schema.getEnum().get(0).toString();
 		if (schema instanceof StringSchema) return validStringValue((StringSchema) schema, successfulExamples);
-		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return configuredOrDefault(successfulExamples, v -> v.getNumber() != null ? v.getNumber().toString() : null, "1");
-		if (schema instanceof BooleanSchema) return configuredOrDefault(successfulExamples, v -> v.getBooleanValue() != null ? v.getBooleanValue().toString() : null, "true");
+		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return validNumberValue(successfulExamples);
+		if (schema instanceof BooleanSchema) return validBooleanValue(successfulExamples);
 		if (schema instanceof ArraySchema) return "[]";
 		if (schema instanceof ObjectSchema) return "{}";
 		return "value";
+	}
+
+	private static String validNumberValue(ExampleValues successfulExamples) {
+		if (successfulExamples == null || successfulExamples.getNumber() == null) return "1";
+		return successfulExamples.getNumber().toString();
+	}
+
+	private static String validBooleanValue(ExampleValues successfulExamples) {
+		if (successfulExamples == null || successfulExamples.getBooleanValue() == null) return "true";
+		return successfulExamples.getBooleanValue().toString();
 	}
 
 	public static String invalidValue(Schema<?> schema, ExampleValues wrongExamples) {
@@ -68,7 +78,8 @@ public final class QueryParamExampleUtils {
 		if (URI_FORMAT.equalsIgnoreCase(format) || URL_FORMAT.equalsIgnoreCase(format)) return "https://example.com";
 		if (UUID_FORMAT.equalsIgnoreCase(format)) return "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 		if (HOSTNAME_FORMAT.equalsIgnoreCase(format)) return "example.com";
-		if (IPV4_FORMAT.equalsIgnoreCase(format)) return "192.168.0.1";
+		// RFC 5737 / RFC 3849 reserved documentation ranges, safe to use as literal examples
+		if (IPV4_FORMAT.equalsIgnoreCase(format)) return "192.0.2.1";
 		if (IPV6_FORMAT.equalsIgnoreCase(format)) return "2001:0db8:85a3:0000:0000:8a2e:0370:7334";
 		if (BYTE_FORMAT.equalsIgnoreCase(format)) return "SGVsbG8gV29ybGQ=";
 		return configuredOrDefault(successfulExamples, ExampleValues::getString, "string");

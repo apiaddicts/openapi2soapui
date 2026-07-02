@@ -183,7 +183,7 @@ class QueryParamExampleUtilsTest {
 	void validValue_returnsRealisticValue_forIpv4Format() {
 		StringSchema schema = new StringSchema();
 		schema.setFormat("ipv4");
-		assertEquals("192.168.0.1", QueryParamExampleUtils.validValue(schema, null));
+		assertEquals("192.0.2.1", QueryParamExampleUtils.validValue(schema, null));
 	}
 
 	@Test

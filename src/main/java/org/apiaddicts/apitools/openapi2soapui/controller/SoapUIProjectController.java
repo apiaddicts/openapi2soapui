@@ -34,10 +34,7 @@ public class SoapUIProjectController {
 		if (openAPI != null && openAPI.getInfo() != null && openAPI.getInfo().getVersion() == null) {
 			throw new APIVersionNotFoundException("Version not found in OpenAPI");
 		}
-    	SoapUIProject soapUIProject = soapUIProjectService.createSoapUIProject(newSoapUIProject.getApiName(), openAPI,
-    			newSoapUIProject.getOAuth2Profiles(), newSoapUIProject.getHeaders(), newSoapUIProject.getTestCaseNames(),
-    			newSoapUIProject.getReadOnly(), newSoapUIProject.getServerPattern(), newSoapUIProject.getMinimalEndpoints(),
-    			newSoapUIProject.getMicrocksHeaders(), newSoapUIProject.getGenerateOneOfAnyOf(), newSoapUIProject.getExamples());
+    	SoapUIProject soapUIProject = soapUIProjectService.createSoapUIProject(newSoapUIProject, openAPI);
     	String projectContent = soapUIProject.getFileContent();
     	soapUIProject.deleteTemporaryFile();
     	return projectContent;

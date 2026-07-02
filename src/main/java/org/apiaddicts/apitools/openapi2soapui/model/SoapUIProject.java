@@ -637,42 +637,56 @@ public class SoapUIProject {
 	 * @throws JSONException
 	 */
 	@SuppressWarnings("rawtypes")
-	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {		
+	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {
 		Object example = property.getExample();
-
-		if (example == null) {
-			property = resolveComposedSchema(property, refResolver);
-			if (property instanceof ObjectSchema) {
-				example = iterateProperties(((ObjectSchema) property).getProperties(), refResolver);
-			} else if (property instanceof ArraySchema) {
-				JSONArray jsonArray = new JSONArray();
-				Schema<?> items = refResolver.resolveSchema(((ArraySchema) property).getItems());
-				jsonArray.put(getPropertyExample(items, refResolver));
-				example = jsonArray;
-			} else if (property instanceof IntegerSchema) {
-				example = getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
-			} else if (property instanceof NumberSchema) {
-				example = getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
-			} else if (property instanceof BooleanSchema) {
-				example = getConfiguredExample(false, ExampleValues::getBooleanValue, true);
-			} else if (property instanceof DateSchema) {
-				example = getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
-			} else if (property instanceof StringSchema) {
-				StringSchema stringProperty = (StringSchema) property;
-				List<String> enums = stringProperty.getEnum();
-				if (enums != null && !enums.isEmpty()) {
-					example = enums.get(0);
-				} else if ("date-time".equalsIgnoreCase(stringProperty.getFormat())) {
-					example = getConfiguredExample(false, ExampleValues::getDateTime, "");
-				} else {
-					example = getConfiguredExample(false, ExampleValues::getString, "");
-				}
-			} else {
-				example = "";
-			}
+		if (example != null) {
+			return example;
 		}
-		
-		return example;
+		return getExampleForResolvedType(resolveComposedSchema(property, refResolver), refResolver);
+	}
+
+	/**
+	 * Get example for a resolved (non-composed) schema, dispatching by concrete schema type
+	 * @param property resolved Schema
+	 * @param refResolver instance of RefResolver
+	 * @return example value for the schema's type
+	 * @throws JSONException
+	 */
+	@SuppressWarnings("rawtypes")
+	private Object getExampleForResolvedType(Schema property, RefResolver refResolver) throws JSONException {
+		if (property instanceof ObjectSchema) {
+			return iterateProperties(((ObjectSchema) property).getProperties(), refResolver);
+		} else if (property instanceof ArraySchema) {
+			JSONArray jsonArray = new JSONArray();
+			Schema<?> items = refResolver.resolveSchema(((ArraySchema) property).getItems());
+			jsonArray.put(getPropertyExample(items, refResolver));
+			return jsonArray;
+		} else if (property instanceof IntegerSchema || property instanceof NumberSchema) {
+			return getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
+		} else if (property instanceof BooleanSchema) {
+			return getConfiguredExample(false, ExampleValues::getBooleanValue, true);
+		} else if (property instanceof DateSchema) {
+			return getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
+		} else if (property instanceof StringSchema) {
+			return getStringExample((StringSchema) property);
+		}
+		return "";
+	}
+
+	/**
+	 * Get example for a String schema, honoring enum values and the date-time format before falling back
+	 * to a configured/default string
+	 * @param stringProperty String Schema
+	 * @return example value
+	 */
+	private Object getStringExample(StringSchema stringProperty) {
+		List<String> enums = stringProperty.getEnum();
+		if (enums != null && !enums.isEmpty()) {
+			return enums.get(0);
+		} else if ("date-time".equalsIgnoreCase(stringProperty.getFormat())) {
+			return getConfiguredExample(false, ExampleValues::getDateTime, "");
+		}
+		return getConfiguredExample(false, ExampleValues::getString, "");
 	}
 
 	/**
@@ -708,35 +722,57 @@ public class SoapUIProject {
 	private Schema resolveComposedSchema(Schema schema, RefResolver refResolver) {
 		final int MAX_ITERATIONS = 10;
 		for (int i = 0; i < MAX_ITERATIONS; i++) {
-			Schema resolved = schema;
-			List<Schema> allOf = schema.getAllOf();
-			if (allOf != null && !allOf.isEmpty()) {
-				ObjectSchema merged = new ObjectSchema();
-				Map<String, Schema> mergedProperties = new HashMap<>();
-				List<String> mergedRequired = new ArrayList<>();
-				for (Schema member : allOf) {
-					Schema resolvedMember = refResolver.resolveSchema(member);
-					if (resolvedMember.getProperties() != null) {
-						mergedProperties.putAll(resolvedMember.getProperties());
-					}
-					if (resolvedMember.getRequired() != null) {
-						mergedRequired.addAll(resolvedMember.getRequired());
-					}
-				}
-				merged.setProperties(mergedProperties);
-				merged.setRequired(mergedRequired);
-				resolved = merged;
-			} else if (generateOneOfAnyOf && schema.getOneOf() != null && !schema.getOneOf().isEmpty()) {
-				resolved = refResolver.resolveSchema((Schema) schema.getOneOf().get(0));
-			} else if (generateOneOfAnyOf && schema.getAnyOf() != null && !schema.getAnyOf().isEmpty()) {
-				resolved = refResolver.resolveSchema((Schema) schema.getAnyOf().get(0));
-			}
+			Schema resolved = resolveComposedSchemaOnce(schema, refResolver);
 			if (resolved == schema) {
 				return resolved;
 			}
 			schema = resolved;
 		}
 		return schema;
+	}
+
+	/**
+	 * Resolve a single level of oneOf/anyOf/allOf composition on a schema
+	 * @param schema to resolve
+	 * @param refResolver instance of RefResolver
+	 * @return resolved schema, or the original schema unchanged if it has no applicable composition
+	 */
+	@SuppressWarnings("rawtypes")
+	private Schema resolveComposedSchemaOnce(Schema schema, RefResolver refResolver) {
+		List<Schema> allOf = schema.getAllOf();
+		if (allOf != null && !allOf.isEmpty()) {
+			return mergeAllOf(allOf, refResolver);
+		} else if (generateOneOfAnyOf && schema.getOneOf() != null && !schema.getOneOf().isEmpty()) {
+			return refResolver.resolveSchema((Schema) schema.getOneOf().get(0));
+		} else if (generateOneOfAnyOf && schema.getAnyOf() != null && !schema.getAnyOf().isEmpty()) {
+			return refResolver.resolveSchema((Schema) schema.getAnyOf().get(0));
+		}
+		return schema;
+	}
+
+	/**
+	 * Merge every allOf member into a single object schema (properties/required of every member)
+	 * @param allOf list of member schemas to merge
+	 * @param refResolver instance of RefResolver
+	 * @return merged object schema
+	 */
+	@SuppressWarnings("rawtypes")
+	private ObjectSchema mergeAllOf(List<Schema> allOf, RefResolver refResolver) {
+		ObjectSchema merged = new ObjectSchema();
+		Map<String, Schema> mergedProperties = new HashMap<>();
+		List<String> mergedRequired = new ArrayList<>();
+		for (Schema member : allOf) {
+			Schema resolvedMember = refResolver.resolveSchema(member);
+			if (resolvedMember.getProperties() != null) {
+				mergedProperties.putAll(resolvedMember.getProperties());
+			}
+			if (resolvedMember.getRequired() != null) {
+				mergedRequired.addAll(resolvedMember.getRequired());
+			}
+		}
+		merged.setProperties(mergedProperties);
+		merged.setRequired(mergedRequired);
+		return merged;
 	}
 
 	/**
@@ -869,27 +905,35 @@ public class SoapUIProject {
 	 */
 	private void setTestCases() {
 		List<RestResource> resources = restService.getAllResources();
-		if (resources != null && !resources.isEmpty()) {
-			resources.forEach(restResource -> {
-				List<RestMethod> methods = restResource.getRestMethodList();
-				if (methods != null && !methods.isEmpty()) {
-					methods.forEach(restMethod -> {
-						String method = restMethod.getMethod().name();
-						if (readOnly && !"GET".equals(method) && !"OPTIONS".equals(method)) return;
-						String testSuiteName = restResource.getPath() + "_" + method + "_" + SUITE_SUFFIX;
-						WsdlTestSuite testSuite = project.addNewTestSuite(testSuiteName);
-						for (String testCaseNameItem : testCaseNames) {
-							String testCaseName = testCaseNameItem + "_" + CASE_SUFFIX;
-							WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
-							TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
-							testCase.addTestStep(ejecutionTestStepConfig);
-						}
-						if (!minimalEndpoints) {
-							addQueryParamVariantTestCases(restResource, restMethod, testSuite);
-						}
-					});
-				}
-			});
+		if (resources == null || resources.isEmpty()) return;
+		resources.forEach(restResource -> {
+			List<RestMethod> methods = restResource.getRestMethodList();
+			if (methods != null && !methods.isEmpty()) {
+				methods.forEach(restMethod -> addTestSuiteForMethod(restResource, restMethod));
+			}
+		});
+	}
+
+	/**
+	 * Add Test Suite for a single Method
+	 * Skipped for non read-only Methods when readOnly is true
+	 * Adds a Test Case per configured test case name, plus optional query parameter variant Test Cases
+	 * @param restResource instance of Resource owning the Method
+	 * @param restMethod instance of Method to generate the Test Suite for
+	 */
+	private void addTestSuiteForMethod(RestResource restResource, RestMethod restMethod) {
+		String method = restMethod.getMethod().name();
+		if (readOnly && !"GET".equals(method) && !"OPTIONS".equals(method)) return;
+		String testSuiteName = restResource.getPath() + "_" + method + "_" + SUITE_SUFFIX;
+		WsdlTestSuite testSuite = project.addNewTestSuite(testSuiteName);
+		for (String testCaseNameItem : testCaseNames) {
+			String testCaseName = testCaseNameItem + "_" + CASE_SUFFIX;
+			WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
+			TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
+			testCase.addTestStep(ejecutionTestStepConfig);
+		}
+		if (!minimalEndpoints) {
+			addQueryParamVariantTestCases(restResource, restMethod, testSuite);
 		}
 	}
 
@@ -968,7 +1012,7 @@ public class SoapUIProject {
 
 		queryParams.forEach(param -> {
 			boolean isTarget = param.getName().equals(targetParam.getName());
-			String value = (isTarget && wrong) ? QueryParamExampleUtils.invalidValue(param.getSchema(), examples != null ? examples.getWrong() : null) : getValidQueryParamValue(param);
+			String value = (isTarget && wrong) ? getInvalidQueryParamValue(param) : getValidQueryParamValue(param);
 			variantRequest.setPropertyValue(param.getName(), value);
 		});
 
@@ -993,6 +1037,16 @@ public class SoapUIProject {
 		Object example = getParameterExample(param);
 		if (example != null && !example.toString().isBlank()) return example.toString();
 		return QueryParamExampleUtils.validValue(param.getSchema(), examples != null ? examples.getSuccessful() : null);
+	}
+
+	/**
+	 * Get Invalid Query Param Value
+	 * Compute a type-aware invalid value for the targeted parameter's schema, used for the "wrong" variant
+	 * @param param OpenAPI Parameter to compute an invalid value for
+	 * @return invalid value as String
+	 */
+	private String getInvalidQueryParamValue(Parameter param) {
+		return QueryParamExampleUtils.invalidValue(param.getSchema(), examples != null ? examples.getWrong() : null);
 	}
 
 	/**
