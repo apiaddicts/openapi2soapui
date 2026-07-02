@@ -53,6 +53,9 @@ public class SoapUIProjectRequest {
 	@JsonProperty("generateOneOfAnyOf")
 	private Boolean generateOneOfAnyOf;
 
+	@JsonProperty("validateSchema")
+	private Boolean validateSchema;
+
 	@Valid
 	@JsonProperty("examples")
 	private ExamplesConfig examples;

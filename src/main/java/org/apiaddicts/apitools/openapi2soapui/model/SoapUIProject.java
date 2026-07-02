@@ -16,6 +16,7 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALID_HTTP_STATUS_CODES_ASSERTION;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_STATUS_CODE;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.WRONG_STATUS_CODE;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SCRIPT_ASSERTION;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_WRONG_SUFFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MICROCKS_RESPONSE_NAME_HEADER;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,6 +70,7 @@ import com.eviware.soapui.impl.wsdl.WsdlTestSuite;
 import com.eviware.soapui.impl.wsdl.testcase.WsdlTestCase;
 import com.eviware.soapui.impl.wsdl.teststeps.RestTestRequestStep;
 import com.eviware.soapui.impl.wsdl.teststeps.WsdlTestStep;
+import com.eviware.soapui.impl.wsdl.teststeps.assertions.basic.GroovyScriptAssertion;
 import com.eviware.soapui.impl.wsdl.teststeps.registry.RestRequestStepFactory;
 import com.eviware.soapui.security.assertion.ValidHttpStatusCodesAssertion;
 import com.eviware.soapui.support.SoapUIException;
@@ -159,6 +162,11 @@ public class SoapUIProject {
 	 */
 	private boolean generateOneOfAnyOf;
 	/**
+	 * When true, adds a Script Assertion to each main test-case request's test step that validates the response
+	 * body against the JSON Schema of the operation's first 2xx JSON response
+	 */
+	private boolean validateSchema;
+	/**
 	 * Custom example values from request body, used before falling back to internal defaults
 	 */
 	private ExamplesConfig examples;
@@ -189,12 +197,13 @@ public class SoapUIProject {
 	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
+	 * @param validateSchema if true, adds a Script Assertion to each main test-case request's test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -212,6 +221,7 @@ public class SoapUIProject {
 		this.minimalEndpoints = Boolean.TRUE.equals(minimalEndpoints);
 		this.microcksHeaders = Boolean.TRUE.equals(microcksHeaders);
 		this.generateOneOfAnyOf = Boolean.TRUE.equals(generateOneOfAnyOf);
+		this.validateSchema = Boolean.TRUE.equals(validateSchema);
 
 		createTempFile();
 		
@@ -918,6 +928,8 @@ public class SoapUIProject {
 	 * Add Test Suite for a single Method
 	 * Skipped for non read-only Methods when readOnly is true
 	 * Adds a Test Case per configured test case name, plus optional query parameter variant Test Cases
+	 * When validateSchema is true, also attaches a Script Assertion validating the response body against the
+	 * operation's JSON Schema to each main test step
 	 * @param restResource instance of Resource owning the Method
 	 * @param restMethod instance of Method to generate the Test Suite for
 	 */
@@ -926,15 +938,316 @@ public class SoapUIProject {
 		if (readOnly && !"GET".equals(method) && !"OPTIONS".equals(method)) return;
 		String testSuiteName = restResource.getPath() + "_" + method + "_" + SUITE_SUFFIX;
 		WsdlTestSuite testSuite = project.addNewTestSuite(testSuiteName);
+		Operation operation = operationByMethodKey.get(methodKey(restResource.getPath(), method));
 		for (String testCaseNameItem : testCaseNames) {
 			String testCaseName = testCaseNameItem + "_" + CASE_SUFFIX;
 			WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 			TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
-			testCase.addTestStep(ejecutionTestStepConfig);
+			WsdlTestStep testStep = testCase.addTestStep(ejecutionTestStepConfig);
+			if (validateSchema) {
+				addSchemaValidationAssertion(testStep, operation);
+			}
 		}
 		if (!minimalEndpoints) {
 			addQueryParamVariantTestCases(restResource, restMethod, testSuite);
 		}
+	}
+
+	/**
+	 * Add Schema Validation Assertion
+	 * Looks up the JSON Schema of the operation's first 2xx JSON response and, if found, attaches a Script
+	 * Assertion to the given test step that parses the response body and validates it against that schema
+	 * Skipped (with a warning) when the operation has no 2xx response with a JSON body to validate against
+	 * @param testStep instance of Test Step to attach the assertion to
+	 * @param operation instance of OpenAPI Operation the test step was built from, or null if unknown
+	 */
+	private void addSchemaValidationAssertion(WsdlTestStep testStep, Operation operation) {
+		if (operation == null) return;
+		RefResolver refResolver = new RefResolver(openAPI);
+		Schema<?> responseSchema = getSuccessJsonResponseSchema(operation, refResolver);
+		if (responseSchema == null) {
+			log.warn("Test step {} has no 2xx JSON response schema to validate; validateSchema assertion skipped", testStep.getName());
+			return;
+		}
+		String script = buildSchemaValidationScript(buildJsonSchemaDefinition(responseSchema, refResolver, new HashSet<>()));
+		if (script == null) return;
+		GroovyScriptAssertion assertion = (GroovyScriptAssertion)
+				((RestTestRequestStep) testStep).addAssertion(SCRIPT_ASSERTION);
+		assertion.setScriptText(script);
+	}
+
+	/**
+	 * Get Success Json Response Schema
+	 * Looks for the first 2xx response (in spec declaration order) that declares a JSON media type, and returns
+	 * its (ref-resolved) Schema
+	 * @param operation instance of OpenAPI Operation
+	 * @param refResolver instance of RefResolver
+	 * @return resolved Schema, or null if no 2xx response declares a JSON body
+	 */
+	@SuppressWarnings("rawtypes")
+	private Schema getSuccessJsonResponseSchema(Operation operation, RefResolver refResolver) {
+		if (operation.getResponses() == null) return null;
+		for (Map.Entry<String, ApiResponse> entry : operation.getResponses().entrySet()) {
+			if (!entry.getKey().startsWith("2")) continue;
+			Content content = entry.getValue().getContent();
+			if (content == null) continue;
+			for (Map.Entry<String, MediaType> mediaTypeEntry : content.entrySet()) {
+				Schema schema = mediaTypeEntry.getValue().getSchema();
+				if (mediaTypeEntry.getKey().toLowerCase().contains(JSON) && schema != null) {
+					return refResolver.resolveSchema(schema);
+				}
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Build Json Schema Definition
+	 * Converts an OpenAPI Schema tree into a plain JSON-Schema-shaped Map (type/properties/required/items/enum/
+	 * nullable, plus allOf merged and oneOf/anyOf represented as an "anyOf" list)
+	 * Independent from generateOneOfAnyOf/example-generation logic, since this builds a real schema definition
+	 * for validation rather than a single example value
+	 * $ref is resolved directly here (not via RefResolver): RefResolver only resolves a given $ref once for its
+	 * whole lifetime (to protect its example-generation walk from infinite recursion on cyclic schemas), which
+	 * would silently under-resolve a schema that is legitimately referenced more than once in the same response
+	 * (e.g. the same Address schema used for both billingAddress and shippingAddress). refsInPath instead tracks
+	 * only the refs currently being expanded along the current branch, so repeated-but-not-cyclic refs are fully
+	 * resolved every time, while a true cycle (a schema that references itself, directly or indirectly) is still
+	 * safely bounded to an open/permissive object instead of overflowing the stack
+	 * @param schema to convert
+	 * @param refResolver instance of RefResolver, still used to resolve allOf members via the shared mergeAllOf helper
+	 * @param refsInPath $ref names currently being expanded along this branch, to detect cycles
+	 * @return Map representing the equivalent JSON Schema definition, or null if schema is null
+	 */
+	@SuppressWarnings("rawtypes")
+	private Object buildJsonSchemaDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
+		if (schema == null) return null;
+		String ref = schema.get$ref();
+		if (ref != null) {
+			if (refsInPath.contains(ref)) {
+				return new LinkedHashMap<>();
+			}
+			Schema target = resolveComponentSchema(ref);
+			if (target == null) return new LinkedHashMap<>();
+			Set<String> nextRefsInPath = new HashSet<>(refsInPath);
+			nextRefsInPath.add(ref);
+			return buildJsonSchemaDefinition(target, refResolver, nextRefsInPath);
+		}
+		boolean nullable = Boolean.TRUE.equals(schema.getNullable());
+		if (schema.getAllOf() != null && !schema.getAllOf().isEmpty()) {
+			return applyNullable(buildJsonSchemaDefinition(mergeAllOf(schema.getAllOf(), refResolver), refResolver, refsInPath), nullable);
+		}
+		List<Schema> alternatives = (schema.getOneOf() != null && !schema.getOneOf().isEmpty()) ? schema.getOneOf() : schema.getAnyOf();
+		if (alternatives != null && !alternatives.isEmpty()) {
+			Map<String, Object> definition = new LinkedHashMap<>();
+			List<Object> anyOf = new ArrayList<>();
+			for (Schema alternative : alternatives) {
+				anyOf.add(buildJsonSchemaDefinition(alternative, refResolver, refsInPath));
+			}
+			definition.put("anyOf", anyOf);
+			return applyNullable(definition, nullable);
+		}
+		Map<String, Object> definition = new LinkedHashMap<>();
+		if (schema.getEnum() != null && !schema.getEnum().isEmpty()) {
+			definition.put("enum", schema.getEnum());
+		}
+		if (schema instanceof ArraySchema) {
+			definition.put("type", "array");
+			definition.put("items", buildJsonSchemaDefinition(((ArraySchema) schema).getItems(), refResolver, refsInPath));
+		} else if (schema instanceof IntegerSchema) {
+			definition.put("type", "integer");
+		} else if (schema instanceof NumberSchema) {
+			definition.put("type", "number");
+		} else if (schema instanceof BooleanSchema) {
+			definition.put("type", "boolean");
+		} else if (schema instanceof StringSchema || schema instanceof DateSchema) {
+			definition.put("type", "string");
+		} else {
+			definition.put("type", "object");
+			Map<String, Object> properties = new LinkedHashMap<>();
+			if (schema.getProperties() != null) {
+				Map<String, Schema> schemaProperties = schema.getProperties();
+				schemaProperties.forEach((propertyName, propertySchema) ->
+						properties.put(propertyName, buildJsonSchemaDefinition(propertySchema, refResolver, refsInPath)));
+			}
+			definition.put("properties", properties);
+			if (schema.getRequired() != null) {
+				definition.put("required", schema.getRequired());
+			}
+			if (Boolean.FALSE.equals(schema.getAdditionalProperties())) {
+				definition.put("additionalProperties", false);
+			}
+		}
+		addCommonConstraints(schema, definition);
+		return applyNullable(definition, nullable);
+	}
+
+	/**
+	 * Add Common Constraints
+	 * Copies the JSON Schema keywords that matter most for catching real validation issues (pattern, format,
+	 * string length, numeric bounds, array size/uniqueness) from the OpenAPI Schema into the definition Map,
+	 * when present. Keywords that don't apply to the schema's type are simply absent in the source schema, so
+	 * this can be called unconditionally for every leaf definition
+	 * @param schema source OpenAPI Schema
+	 * @param definition JSON-Schema-shaped Map to enrich in place
+	 */
+	@SuppressWarnings("rawtypes")
+	private void addCommonConstraints(Schema schema, Map<String, Object> definition) {
+		if (schema.getPattern() != null) {
+			definition.put("pattern", schema.getPattern());
+		}
+		if (schema.getFormat() != null) {
+			definition.put("format", schema.getFormat());
+		}
+		if (schema.getMinLength() != null) {
+			definition.put("minLength", schema.getMinLength());
+		}
+		if (schema.getMaxLength() != null) {
+			definition.put("maxLength", schema.getMaxLength());
+		}
+		if (schema.getMinimum() != null) {
+			definition.put("minimum", schema.getMinimum());
+		}
+		if (schema.getMaximum() != null) {
+			definition.put("maximum", schema.getMaximum());
+		}
+		if (schema.getMinItems() != null) {
+			definition.put("minItems", schema.getMinItems());
+		}
+		if (schema.getMaxItems() != null) {
+			definition.put("maxItems", schema.getMaxItems());
+		}
+		if (Boolean.TRUE.equals(schema.getUniqueItems())) {
+			definition.put("uniqueItems", true);
+		}
+	}
+
+	/**
+	 * Apply Nullable
+	 * Marks a schema definition Map as nullable, so the validator accepts a null instance at that node
+	 * @param definition Map produced by buildJsonSchemaDefinition, or any other value (left untouched if not a Map)
+	 * @param nullable whether the original OpenAPI schema declared nullable: true
+	 * @return the same definition, with "nullable": true added when applicable
+	 */
+	@SuppressWarnings("unchecked")
+	private Object applyNullable(Object definition, boolean nullable) {
+		if (nullable && definition instanceof Map) {
+			((Map<String, Object>) definition).put("nullable", true);
+		}
+		return definition;
+	}
+
+	/**
+	 * Resolve Component Schema
+	 * Looks up a $ref directly in components/schemas, independent of RefResolver's resolve-once cache
+	 * @param ref $ref string, e.g. "#/components/schemas/Address"
+	 * @return the referenced Schema, or null if components/schemas or the key itself is not found
+	 */
+	@SuppressWarnings("rawtypes")
+	private Schema resolveComponentSchema(String ref) {
+		if (openAPI.getComponents() == null || openAPI.getComponents().getSchemas() == null) return null;
+		String[] refParts = ref.split("/");
+		return openAPI.getComponents().getSchemas().get(refParts[refParts.length - 1]);
+	}
+
+	/**
+	 * Build Schema Validation Script
+	 * Builds a self-contained Groovy script (no external libraries required) that parses the response body as
+	 * JSON and recursively validates it against the given JSON Schema definition, failing the assertion with a
+	 * descriptive message when the body is not JSON or does not match the schema
+	 * @param jsonSchemaDefinition Map produced by buildJsonSchemaDefinition
+	 * @return Groovy script source, or null if the schema definition could not be serialized
+	 */
+	private String buildSchemaValidationScript(Object jsonSchemaDefinition) {
+		String schemaJson = mapObjectToJsonString(jsonSchemaDefinition);
+		if (schemaJson == null) return null;
+		// Escape backslashes and single quotes so the JSON text survives Groovy's own string-literal escaping
+		// unchanged (matters for enum values containing backslashes, e.g. Windows-style paths)
+		String safeSchemaJson = schemaJson.replace("\\", "\\\\").replace("'", "\\'");
+		return String.join("\n",
+				"def json = null",
+				"try {",
+				"    json = new groovy.json.JsonSlurper().parseText(messageExchange.responseContent)",
+				"} catch (Exception e) {",
+				"    assert false : \"A JSON response was expected\"",
+				"}",
+				"",
+				"def schema = new groovy.json.JsonSlurper().parseText('''" + safeSchemaJson + "''')",
+				"",
+				"def errors = []",
+				"def validateNode",
+				"validateNode = { instance, sch, path ->",
+				"    if (sch == null) { return }",
+				"    if (instance == null) {",
+				"        if (!(sch.nullable == true)) { errors << (path + \": expected non-null value\") }",
+				"        return",
+				"    }",
+				"    if (sch.enum != null) {",
+				"        if (!sch.enum.contains(instance)) {",
+				"            errors << (path + \": value is not one of the allowed enum values\")",
+				"        }",
+				"        return",
+				"    }",
+				"    if (sch.anyOf != null) {",
+				"        def matched = false",
+				"        for (candidate in sch.anyOf) {",
+				"            def before = errors.size()",
+				"            validateNode(instance, candidate, path)",
+				"            if (errors.size() == before) { matched = true; break }",
+				"            while (errors.size() > before) { errors.remove(errors.size() - 1) }",
+				"        }",
+				"        if (!matched) { errors << (path + \": does not match any of the expected schemas\") }",
+				"        return",
+				"    }",
+				"    switch (sch.type) {",
+				"        case 'object':",
+				"            if (!(instance instanceof Map)) { errors << (path + \": expected object\"); return }",
+				"            (sch.required ?: []).each { req -> if (!instance.containsKey(req)) { errors << (path + \".\" + req + \": required property missing\") } }",
+				"            (sch.properties ?: [:]).each { propName, propSchema -> if (instance.containsKey(propName)) { validateNode(instance[propName], propSchema, path + \".\" + propName) } }",
+				"            if (sch.additionalProperties == false) {",
+				"                def allowedProps = (sch.properties ?: [:]).keySet()",
+				"                instance.keySet().each { key -> if (!allowedProps.contains(key)) { errors << (path + \".\" + key + \": additional property not allowed\") } }",
+				"            }",
+				"            break",
+				"        case 'array':",
+				"            if (!(instance instanceof List)) { errors << (path + \": expected array\"); return }",
+				"            if (sch.minItems != null && instance.size() < sch.minItems) { errors << (path + \": fewer than minItems \" + sch.minItems) }",
+				"            if (sch.maxItems != null && instance.size() > sch.maxItems) { errors << (path + \": more than maxItems \" + sch.maxItems) }",
+				"            if (sch.uniqueItems == true && instance.size() != (instance as Set).size()) { errors << (path + \": items are not unique\") }",
+				"            instance.eachWithIndex { item, idx -> validateNode(item, sch.items, path + \"[\" + idx + \"]\") }",
+				"            break",
+				"        case 'string':",
+				"            if (!(instance instanceof String)) { errors << (path + \": expected string\"); return }",
+				"            if (sch.pattern && !(instance =~ sch.pattern).find()) { errors << (path + \": does not match pattern '\" + sch.pattern + \"'\") }",
+				"            if (sch.format == 'email' && !(instance ==~ /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/)) { errors << (path + \": does not match format 'email'\") }",
+				"            if (sch.format == 'uuid' && !(instance ==~ /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/)) { errors << (path + \": does not match format 'uuid'\") }",
+				"            if (sch.format == 'date' && !(instance ==~ /^\\d{4}-\\d{2}-\\d{2}$/)) { errors << (path + \": does not match format 'date'\") }",
+				"            if (sch.format == 'date-time' && !(instance ==~ /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})?$/)) { errors << (path + \": does not match format 'date-time'\") }",
+				"            if (sch.minLength != null && instance.length() < sch.minLength) { errors << (path + \": shorter than minLength \" + sch.minLength) }",
+				"            if (sch.maxLength != null && instance.length() > sch.maxLength) { errors << (path + \": longer than maxLength \" + sch.maxLength) }",
+				"            break",
+				"        case 'integer':",
+				"            if (!(instance instanceof Integer || instance instanceof Long || instance instanceof BigInteger || (instance instanceof BigDecimal && instance.scale() <= 0))) { errors << (path + \": expected integer\"); return }",
+				"            if (sch.minimum != null && new BigDecimal(instance.toString()).compareTo(new BigDecimal(sch.minimum.toString())) < 0) { errors << (path + \": below minimum \" + sch.minimum) }",
+				"            if (sch.maximum != null && new BigDecimal(instance.toString()).compareTo(new BigDecimal(sch.maximum.toString())) > 0) { errors << (path + \": above maximum \" + sch.maximum) }",
+				"            break",
+				"        case 'number':",
+				"            if (!(instance instanceof Number)) { errors << (path + \": expected number\"); return }",
+				"            if (sch.minimum != null && new BigDecimal(instance.toString()).compareTo(new BigDecimal(sch.minimum.toString())) < 0) { errors << (path + \": below minimum \" + sch.minimum) }",
+				"            if (sch.maximum != null && new BigDecimal(instance.toString()).compareTo(new BigDecimal(sch.maximum.toString())) > 0) { errors << (path + \": above maximum \" + sch.maximum) }",
+				"            break",
+				"        case 'boolean':",
+				"            if (!(instance instanceof Boolean)) { errors << (path + \": expected boolean\") }",
+				"            break",
+				"        default:",
+				"            break",
+				"    }",
+				"}",
+				"",
+				"validateNode(json, schema, '$')",
+				"",
+				"assert errors.isEmpty() : \"Response body does not match the expected JSON Schema: \" + errors.join('; ')"
+		);
 	}
 
 	/**

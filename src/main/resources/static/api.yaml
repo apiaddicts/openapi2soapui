@@ -65,6 +65,8 @@ paths:
 
         Additionally, when the **generateOneOfAnyOf** flag is set to true, oneOf/anyOf schemas in the request body are resolved to their first candidate schema when generating the example body (default: unresolved/omitted). allOf schemas are always merged into a single object regardless of this flag.
 
+        Additionally, when the **validateSchema** flag is set to true, a Script Assertion is added to each main test case's request test step (the testCaseNames-based cases only) that parses the response body and validates it against the JSON Schema of the operation's first 2xx JSON response, failing the test case if the body is not JSON or does not match the schema. Operations without a 2xx JSON response are skipped (no assertion is added).
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -80,6 +82,7 @@ paths:
           - minimalEndpoints: Boolean flag; when false (default), also generates a valid/invalid test case pair per optional query parameter
           - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
           - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies. allOf is always merged regardless of this flag
+          - validateSchema: Boolean flag; when true, adds a Script Assertion to each main test case's request test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
         content:
           aplication/json:
             schema:
@@ -481,6 +484,10 @@ components:
         generateOneOfAnyOf:
           type: boolean
           description: If true, resolves oneOf/anyOf schemas to their first candidate schema when generating the example request body. allOf schemas are always merged into a single object regardless of this flag.
+          example: false
+        validateSchema:
+          type: boolean
+          description: If true, adds a Script Assertion to each main test case's request test step that parses the response body and validates it against the JSON Schema of the operation's first 2xx JSON response. Operations without a 2xx JSON response are skipped. Does not affect the optional-query-parameter variant test cases.
           example: false
         serverPattern:
           type: string
