@@ -486,6 +486,36 @@ components:
           type: string
           description: Pattern to select the OpenAPI server used as endpoint. Wrap the substring with % (e.g. %dev%). If no server matches, the first server is used.
           example: "%dev%"
+        examples:
+          $ref: '#/components/schemas/Examples'
+    Examples:
+      type: object
+      description: Custom example values used when generating request body properties and optional-query-parameter test values. Any field not provided falls back to the tool's internal default. "successful" values are used for valid request bodies and valid query parameter test cases; "wrong" values are used only for the invalid query parameter test cases generated when minimalEndpoints is false.
+      properties:
+        successful:
+          $ref: '#/components/schemas/ExampleValues'
+        wrong:
+          $ref: '#/components/schemas/ExampleValues'
+    ExampleValues:
+      type: object
+      properties:
+        string:
+          type: string
+          example: goodstring
+        number:
+          type: number
+          example: 6
+        boolean:
+          type: boolean
+          example: true
+        date:
+          type: string
+          format: date
+          example: "2020-01-01"
+        dateTime:
+          type: string
+          format: date-time
+          example: "2020-01-01T23:59:59"
     Headers:
       type: array
       description: List of optionals headers. This apply in all resources

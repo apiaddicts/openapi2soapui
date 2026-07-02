@@ -9,8 +9,9 @@ import io.swagger.v3.oas.models.OpenAPI;
 import org.apiaddicts.apitools.openapi2soapui.model.SoapUIProject;
 import org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
+import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 import org.apache.xmlbeans.XmlException;
 
 public interface SoapUIProjectService {
-    SoapUIProject createSoapUIProject(String apiName, OpenAPI openAPI, List<OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCases, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf) throws IOException, XmlException, SoapUIException;
+    SoapUIProject createSoapUIProject(String apiName, OpenAPI openAPI, List<OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCases, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, ExamplesConfig examples) throws IOException, XmlException, SoapUIException;
 }

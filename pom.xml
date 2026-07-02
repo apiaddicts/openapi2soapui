@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>net.cloudappi</groupId>
 	<artifactId>openapi2soapui</artifactId>
-	<version>1.0.3</version>
+	<version>1.1.0-beta-1</version>
 	<packaging>${packaging.type}</packaging>
 
 	<name>openapi2soapui</name>
@@ -52,7 +52,8 @@
 
 		<springdoc.version>1.5.6</springdoc.version>
 		<soapui.version>5.6.0</soapui.version>
-		<swagger-parser.version>2.0.24</swagger-parser.version>
+		<swagger-parser.version>2.1.39</swagger-parser.version>
+		<lombok.version>1.18.30</lombok.version>
 	</properties>
 
 	<profiles>

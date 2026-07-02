@@ -98,6 +98,8 @@ import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
+import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
+import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 import org.apiaddicts.apitools.openapi2soapui.util.QueryParamExampleUtils;
 import org.apiaddicts.apitools.openapi2soapui.util.RefResolver;
 
@@ -157,6 +159,10 @@ public class SoapUIProject {
 	 */
 	private boolean generateOneOfAnyOf;
 	/**
+	 * Custom example values from request body, used before falling back to internal defaults
+	 */
+	private ExamplesConfig examples;
+	/**
 	 * OpenAPI Operation for each generated Method, keyed by a stable path+httpMethod key (not by RestMethod
 	 * object identity, which is not guaranteed stable across SoapUI accessor calls), used to build optional
 	 * query parameter variant requests
@@ -183,14 +189,16 @@ public class SoapUIProject {
 	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
+	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
+		this.examples = examples;
 
 		this.apiVersion = openAPI.getInfo().getVersion();
 
@@ -642,20 +650,22 @@ public class SoapUIProject {
 				jsonArray.put(getPropertyExample(items, refResolver));
 				example = jsonArray;
 			} else if (property instanceof IntegerSchema) {
-				example = 0;
+				example = getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
 			} else if (property instanceof NumberSchema) {
-				example = 0;
+				example = getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
 			} else if (property instanceof BooleanSchema) {
-				example = true;
+				example = getConfiguredExample(false, ExampleValues::getBooleanValue, true);
 			} else if (property instanceof DateSchema) {
-				example = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
+				example = getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
 			} else if (property instanceof StringSchema) {
 				StringSchema stringProperty = (StringSchema) property;
 				List<String> enums = stringProperty.getEnum();
 				if (enums != null && !enums.isEmpty()) {
 					example = enums.get(0);
+				} else if ("date-time".equalsIgnoreCase(stringProperty.getFormat())) {
+					example = getConfiguredExample(false, ExampleValues::getDateTime, "");
 				} else {
-					example = "";
+					example = getConfiguredExample(false, ExampleValues::getString, "");
 				}
 			} else {
 				example = "";
@@ -663,6 +673,26 @@ public class SoapUIProject {
 		}
 		
 		return example;
+	}
+
+	/**
+	 * Look up a custom example value from the request body's "examples" configuration, falling back to
+	 * defaultValue if "examples" was not provided, or the requested space/field was not configured
+	 * @param wrong true to look up examples.wrong, false to look up examples.successful
+	 * @param getter accessor for the desired field on ExampleValues
+	 * @param defaultValue value to use if not configured
+	 * @return the configured value, or defaultValue
+	 */
+	private <T> T getConfiguredExample(boolean wrong, java.util.function.Function<ExampleValues, T> getter, T defaultValue) {
+		if (examples == null) {
+			return defaultValue;
+		}
+		ExampleValues values = wrong ? examples.getWrong() : examples.getSuccessful();
+		if (values == null) {
+			return defaultValue;
+		}
+		T configured = getter.apply(values);
+		return configured != null ? configured : defaultValue;
 	}
 
 	/**
@@ -938,7 +968,7 @@ public class SoapUIProject {
 
 		queryParams.forEach(param -> {
 			boolean isTarget = param.getName().equals(targetParam.getName());
-			String value = (isTarget && wrong) ? QueryParamExampleUtils.invalidValue(param.getSchema()) : getValidQueryParamValue(param);
+			String value = (isTarget && wrong) ? QueryParamExampleUtils.invalidValue(param.getSchema(), examples != null ? examples.getWrong() : null) : getValidQueryParamValue(param);
 			variantRequest.setPropertyValue(param.getName(), value);
 		});
 
@@ -962,7 +992,7 @@ public class SoapUIProject {
 	private String getValidQueryParamValue(Parameter param) {
 		Object example = getParameterExample(param);
 		if (example != null && !example.toString().isBlank()) return example.toString();
-		return QueryParamExampleUtils.validValue(param.getSchema());
+		return QueryParamExampleUtils.validValue(param.getSchema(), examples != null ? examples.getSuccessful() : null);
 	}
 
 	/**
