@@ -176,6 +176,26 @@ public class SoapUIProject {
 	 * query parameter variant requests
 	 */
 	private Map<String, Operation> operationByMethodKey = new HashMap<>();
+	/**
+	 * When true, request-body example values are embedded literally in the JSON body.
+	 * When false (default), each generated scalar body value is stored as a SoapUI Project
+	 * Property and referenced from the body via a "${#Project#key}" expansion token.
+	 */
+	private boolean isInline;
+	/**
+	 * Incremented once per JSON request body generated (see getRequestExample), used as a
+	 * globally-unique prefix for Project Property keys so that fields with the same name/path
+	 * across different operations never collide.
+	 */
+	private int bodyPropertyCounter = 0;
+	/**
+	 * For the JSON request body currently being generated: maps each "${#Project#key}" token
+	 * produced to whether its underlying value is string-typed (true) or not (false: number/
+	 * boolean/date). Reset at the start of every getRequestExample call. Used after
+	 * mapObjectToJsonString to strip the JSON quotes the org.json serializer necessarily puts
+	 * around the token (a Java String) when the real value is not itself a JSON string.
+	 */
+	private Map<String, Boolean> currentBodyTokenTypes = new LinkedHashMap<>();
 
 	/**
 	 * SoapUIProject constructor
@@ -198,12 +218,13 @@ public class SoapUIProject {
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
 	 * @param validateSchema if true, adds a Script Assertion to each main test-case request's test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
+	 * @param isInline if false (default), JSON request-body example values are stored as SoapUI Project Properties and referenced via a "${#Project#key}" token instead of being embedded literally
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean isInline, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -222,6 +243,7 @@ public class SoapUIProject {
 		this.microcksHeaders = Boolean.TRUE.equals(microcksHeaders);
 		this.generateOneOfAnyOf = Boolean.TRUE.equals(generateOneOfAnyOf);
 		this.validateSchema = Boolean.TRUE.equals(validateSchema);
+		this.isInline = Boolean.TRUE.equals(isInline);
 
 		createTempFile();
 		
@@ -579,6 +601,7 @@ public class SoapUIProject {
 					Object example = getRequestExample(mediaTypeObject, refResolver);
 					if (example != null) {
 						String exampleStr = mapObjectToJsonString(example);
+						exampleStr = stripQuotesAroundNonStringTokens(exampleStr);
 						if (exampleStr != null) {
 							restRequest.setRequestContent(exampleStr);
 						}
@@ -598,6 +621,8 @@ public class SoapUIProject {
 	 */
 	@SuppressWarnings("rawtypes")
 	private Object getRequestExample(MediaType mediaType, RefResolver refResolver) {
+		bodyPropertyCounter++;
+		currentBodyTokenTypes = new LinkedHashMap<>();
 		Object example;
 		Schema<?> schema = resolveComposedSchema(refResolver.resolveSchema(mediaType.getSchema()), refResolver);
 		if (mediaType.getExample() != null) {
@@ -609,7 +634,7 @@ public class SoapUIProject {
 		}
 		if (example == null) {
 			Map<String, Schema> properties = schema.getProperties();
-			example = iterateProperties(properties, refResolver);
+			example = iterateProperties(properties, refResolver, "");
 		}
 		return example;
 	}
@@ -618,16 +643,18 @@ public class SoapUIProject {
 	 * Iterate all properties of schema an set an example, if schema is $ref, $ref is resolved
 	 * @param properties map of properties (property name, property schema)
 	 * @param refResolver to help resolve schemas $ref
-	 * @return json object with example of its properties 
+	 * @param path underscore-joined property path built so far, used to key Project Properties when isInline is false
+	 * @return json object with example of its properties
 	 */
 	@SuppressWarnings("rawtypes")
-	private JSONObject iterateProperties(Map<String, Schema> properties, RefResolver refResolver) {
+	private JSONObject iterateProperties(Map<String, Schema> properties, RefResolver refResolver, String path) {
 		JSONObject json = new JSONObject();
 		if (properties != null  && !properties.isEmpty()) {
 			properties.forEach((propertyName, property) -> {
 				property = refResolver.resolveSchema(property);
+				String childPath = path.isEmpty() ? propertyName : path + "_" + propertyName;
 				try {
-					Object example = getPropertyExample(property, refResolver);
+					Object example = getPropertyExample(property, refResolver, childPath);
 					json.put(propertyName, example);
 				} catch (JSONException e) {
 					log.warn("Error iterateProperties", e);
@@ -636,51 +663,53 @@ public class SoapUIProject {
 		}
 		return json;
 	}
-	
+
 	/**
 	 * Get property example
 	 * Validate if Property Schema has example, if so, return example value
 	 * If not, return a generic value according to data type
 	 * @param property
 	 * @param refResolver
+	 * @param path underscore-joined property path, used to key Project Properties when isInline is false
 	 * @return
 	 * @throws JSONException
 	 */
 	@SuppressWarnings("rawtypes")
-	private Object getPropertyExample(Schema property, RefResolver refResolver) throws JSONException {
+	private Object getPropertyExample(Schema property, RefResolver refResolver, String path) throws JSONException {
 		Object example = property.getExample();
 		if (example != null) {
-			return example;
+			return registerBodyValue(path, example);
 		}
-		return getExampleForResolvedType(resolveComposedSchema(property, refResolver), refResolver);
+		return getExampleForResolvedType(resolveComposedSchema(property, refResolver), refResolver, path);
 	}
 
 	/**
 	 * Get example for a resolved (non-composed) schema, dispatching by concrete schema type
 	 * @param property resolved Schema
 	 * @param refResolver instance of RefResolver
+	 * @param path underscore-joined property path, used to key Project Properties when isInline is false
 	 * @return example value for the schema's type
 	 * @throws JSONException
 	 */
 	@SuppressWarnings("rawtypes")
-	private Object getExampleForResolvedType(Schema property, RefResolver refResolver) throws JSONException {
+	private Object getExampleForResolvedType(Schema property, RefResolver refResolver, String path) throws JSONException {
 		if (property instanceof ObjectSchema) {
-			return iterateProperties(((ObjectSchema) property).getProperties(), refResolver);
+			return iterateProperties(((ObjectSchema) property).getProperties(), refResolver, path);
 		} else if (property instanceof ArraySchema) {
 			JSONArray jsonArray = new JSONArray();
 			Schema<?> items = refResolver.resolveSchema(((ArraySchema) property).getItems());
-			jsonArray.put(getPropertyExample(items, refResolver));
+			jsonArray.put(getPropertyExample(items, refResolver, path + "_item"));
 			return jsonArray;
 		} else if (property instanceof IntegerSchema || property instanceof NumberSchema) {
-			return getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO);
+			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO));
 		} else if (property instanceof BooleanSchema) {
-			return getConfiguredExample(false, ExampleValues::getBooleanValue, true);
+			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getBooleanValue, true));
 		} else if (property instanceof DateSchema) {
-			return getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
+			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date())));
 		} else if (property instanceof StringSchema) {
-			return getStringExample((StringSchema) property);
+			return registerBodyValue(path, getStringExample((StringSchema) property));
 		}
-		return "";
+		return registerBodyValue(path, "");
 	}
 
 	/**
@@ -807,6 +836,47 @@ public class SoapUIProject {
 			}
 		}
 		return jsonString;
+	}
+
+	/**
+	 * If isInline is false and value is a tokenizable scalar (String/Number/Boolean), stores it as a
+	 * SoapUI Project Property keyed by a globally-unique, path-based name and returns the
+	 * "${#Project#key}" reference token to place in the JSON body instead of the literal value.
+	 * Otherwise (isInline true, value is null, or value is a non-scalar Object such as a whole-object
+	 * schema example) returns value unchanged.
+	 * @param path underscore-joined property path built by iterateProperties/getExampleForResolvedType
+	 * @param value the computed example value for that path
+	 * @return the literal value (isInline / non-scalar) or a "${#Project#key}" token (otherwise)
+	 */
+	private Object registerBodyValue(String path, Object value) {
+		if (isInline || value == null || !(value instanceof String || value instanceof Number || value instanceof Boolean)) {
+			return value;
+		}
+		String key = "body" + bodyPropertyCounter + "_" + path.replaceAll("[^A-Za-z0-9_]", "_");
+		project.setPropertyValue(key, String.valueOf(value));
+		currentBodyTokenTypes.put(key, value instanceof String);
+		return "${#Project#" + key + "}";
+	}
+
+	/**
+	 * Strips the JSON quotes the org.json serializer necessarily wrote around each non-string token
+	 * (org.json only knows how to serialize the token as a Java String), so that after SoapUI
+	 * resolves the property at runtime the field keeps its correct JSON type (number/boolean)
+	 * instead of becoming a quoted string. No-op when isInline is true (currentBodyTokenTypes is empty).
+	 * @param json serialized request body JSON, possibly containing "${#Project#key}" tokens
+	 * @return json with quotes stripped around every non-string token
+	 */
+	private String stripQuotesAroundNonStringTokens(String json) {
+		if (json == null || currentBodyTokenTypes.isEmpty()) {
+			return json;
+		}
+		for (Map.Entry<String, Boolean> entry : currentBodyTokenTypes.entrySet()) {
+			if (Boolean.FALSE.equals(entry.getValue())) {
+				String token = "${#Project#" + entry.getKey() + "}";
+				json = json.replace("\"" + token + "\"", token);
+			}
+		}
+		return json;
 	}
 
 	/**
