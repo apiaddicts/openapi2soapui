@@ -56,6 +56,9 @@ public class SoapUIProjectRequest {
 	@JsonProperty("validateSchema")
 	private Boolean validateSchema;
 
+	@JsonProperty("schemaIsInline")
+	private Boolean schemaIsInline;
+
 	@JsonProperty("isInline")
 	private Boolean isInline;
 

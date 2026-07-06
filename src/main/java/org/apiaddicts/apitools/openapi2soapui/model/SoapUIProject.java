@@ -167,6 +167,13 @@ public class SoapUIProject {
 	 */
 	private boolean validateSchema;
 	/**
+	 * Only relevant when validateSchema is true. When true, the response JSON Schema used by the
+	 * validateSchema assertion is embedded literally in the Script Assertion text (previous/only
+	 * behavior). When false (default), the schema is stored as a SoapUI Project Property and read
+	 * at runtime from the script via a context.expand("${#Project#key}") call instead.
+	 */
+	private boolean schemaIsInline;
+	/**
 	 * Custom example values from request body, used before falling back to internal defaults
 	 */
 	private ExamplesConfig examples;
@@ -188,6 +195,11 @@ public class SoapUIProject {
 	 * across different operations never collide.
 	 */
 	private int bodyPropertyCounter = 0;
+	/**
+	 * Incremented once per validateSchema assertion built, used as a globally-unique suffix for the
+	 * "schema<N>" Project Property key when schemaIsInline is false (mirrors bodyPropertyCounter).
+	 */
+	private int schemaPropertyCounter = 0;
 	/**
 	 * For the JSON request body currently being generated: maps each "${#Project#key}" token
 	 * produced to whether its underlying value is string-typed (true) or not (false: number/
@@ -218,13 +230,14 @@ public class SoapUIProject {
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
 	 * @param validateSchema if true, adds a Script Assertion to each main test-case request's test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
+	 * @param schemaIsInline only relevant when validateSchema is true; if false (default), the response JSON Schema is stored as a SoapUI Project Property and read via a context.expand("${#Project#key}") call instead of being embedded literally
 	 * @param isInline if false (default), JSON request-body example values are stored as SoapUI Project Properties and referenced via a "${#Project#key}" token instead of being embedded literally
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean isInline, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -243,6 +256,7 @@ public class SoapUIProject {
 		this.microcksHeaders = Boolean.TRUE.equals(microcksHeaders);
 		this.generateOneOfAnyOf = Boolean.TRUE.equals(generateOneOfAnyOf);
 		this.validateSchema = Boolean.TRUE.equals(validateSchema);
+		this.schemaIsInline = Boolean.TRUE.equals(schemaIsInline);
 		this.isInline = Boolean.TRUE.equals(isInline);
 
 		createTempFile();
@@ -1225,15 +1239,26 @@ public class SoapUIProject {
 	 * Builds a self-contained Groovy script (no external libraries required) that parses the response body as
 	 * JSON and recursively validates it against the given JSON Schema definition, failing the assertion with a
 	 * descriptive message when the body is not JSON or does not match the schema
+	 * When schemaIsInline is false (default), the schema JSON is stored as a SoapUI Project Property instead of
+	 * being embedded in the script, and the script reads it at runtime via context.expand(...)
 	 * @param jsonSchemaDefinition Map produced by buildJsonSchemaDefinition
 	 * @return Groovy script source, or null if the schema definition could not be serialized
 	 */
 	private String buildSchemaValidationScript(Object jsonSchemaDefinition) {
 		String schemaJson = mapObjectToJsonString(jsonSchemaDefinition);
 		if (schemaJson == null) return null;
-		// Escape backslashes and single quotes so the JSON text survives Groovy's own string-literal escaping
-		// unchanged (matters for enum values containing backslashes, e.g. Windows-style paths)
-		String safeSchemaJson = schemaJson.replace("\\", "\\\\").replace("'", "\\'");
+		String schemaSource;
+		if (schemaIsInline) {
+			// Escape backslashes and single quotes so the JSON text survives Groovy's own string-literal escaping
+			// unchanged (matters for enum values containing backslashes, e.g. Windows-style paths)
+			String safeSchemaJson = schemaJson.replace("\\", "\\\\").replace("'", "\\'");
+			schemaSource = "def schema = new groovy.json.JsonSlurper().parseText('''" + safeSchemaJson + "''')";
+		} else {
+			schemaPropertyCounter++;
+			String key = "schema" + schemaPropertyCounter;
+			project.setPropertyValue(key, schemaJson);
+			schemaSource = "def schema = new groovy.json.JsonSlurper().parseText(context.expand('${#Project#" + key + "}'))";
+		}
 		return String.join("\n",
 				"def json = null",
 				"try {",
@@ -1242,7 +1267,7 @@ public class SoapUIProject {
 				"    assert false : \"A JSON response was expected\"",
 				"}",
 				"",
-				"def schema = new groovy.json.JsonSlurper().parseText('''" + safeSchemaJson + "''')",
+				schemaSource,
 				"",
 				"def errors = []",
 				"def validateNode",

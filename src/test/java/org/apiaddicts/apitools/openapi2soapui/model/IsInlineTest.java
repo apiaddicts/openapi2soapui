@@ -67,7 +67,7 @@ class IsInlineTest {
 		OpenAPI openAPI = parseSpec();
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, true, false, false, false, true, examplesConfig());
+				false, null, true, false, false, false, true, true, examplesConfig());
 		String compact = decodeAndCompact(soapUIProject.getFileContent());
 
 		assertTrue(compact.contains("\"name\":\"Ada\""), "Body should contain the literal string value: " + compact);
@@ -80,7 +80,7 @@ class IsInlineTest {
 		OpenAPI openAPI = parseSpec();
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, true, false, false, false, false, examplesConfig());
+				false, null, true, false, false, false, true, false, examplesConfig());
 		String compact = decodeAndCompact(soapUIProject.getFileContent());
 
 		assertTrue(compact.contains("\"name\":\"${#Project#body1_name}\""), "String field should be a quoted Project Property token: " + compact);
@@ -144,7 +144,7 @@ class IsInlineTest {
 		OpenAPI openAPI = result.getOpenAPI();
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, true, false, false, false, false, null);
+				false, null, true, false, false, false, true, false, null);
 		String compact = decodeAndCompact(soapUIProject.getFileContent());
 
 		// /items body (generated first -> counter 1): top-level, nested object and array-of-object leaves

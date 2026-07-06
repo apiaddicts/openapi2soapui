@@ -62,7 +62,7 @@ class ValidateSchemaScriptTest {
 		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, true, false, false, true, false, null);
+				false, null, true, false, false, true, true, false, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("Script Assertion"), "XML should contain the Script Assertion");

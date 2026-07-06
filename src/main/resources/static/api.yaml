@@ -67,6 +67,8 @@ paths:
 
         Additionally, when the **validateSchema** flag is set to true, a Script Assertion is added to each main test case's request test step (the testCaseNames-based cases only) that parses the response body and validates it against the JSON Schema of the operation's first 2xx JSON response, failing the test case if the body is not JSON or does not match the schema. Operations without a 2xx JSON response are skipped (no assertion is added).
 
+        Additionally, when the **validateSchema** flag is true and the **schemaIsInline** flag is set to false (the default), the JSON Schema used by that assertion is stored as a SoapUI Project Property and read from the script at runtime via a `context.expand('${#Project#...}')` call, instead of being embedded literally in the script; set to true to embed the schema directly in the script as before. Has no effect when validateSchema is false.
+
         Additionally, when the **isInline** flag is set to false (the default), every generated JSON request-body example value is stored as a SoapUI Project Property and referenced from the body via a `${#Project#...}` token, instead of being embedded literally; set to true to embed literal values directly in the body as before.
 
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
@@ -85,6 +87,7 @@ paths:
           - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
           - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies. allOf is always merged regardless of this flag
           - validateSchema: Boolean flag; when true, adds a Script Assertion to each main test case's request test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
+          - schemaIsInline: Boolean flag; only relevant when validateSchema is true. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
           - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
         content:
           aplication/json:
@@ -491,6 +494,10 @@ components:
         validateSchema:
           type: boolean
           description: If true, adds a Script Assertion to each main test case's request test step that parses the response body and validates it against the JSON Schema of the operation's first 2xx JSON response. Operations without a 2xx JSON response are skipped. Does not affect the optional-query-parameter variant test cases.
+          example: false
+        schemaIsInline:
+          type: boolean
+          description: Only relevant when validateSchema is true. If false (default), the response JSON Schema used by the validateSchema assertion is generated as a SoapUI Project Property and read from the script at runtime via a "context.expand('${#Project#...}')" call. If true, the schema is embedded directly as a literal in the assertion script instead.
           example: false
         isInline:
           type: boolean
