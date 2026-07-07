@@ -18,7 +18,8 @@ public class SoapUIProjectServiceImpl implements SoapUIProjectService {
 		return new SoapUIProject(request.getApiName(), openAPI, request.getOAuth2Profiles(), request.getHeaders(),
 				request.getTestCaseNames(), request.getReadOnly(), request.getServerPattern(), request.getMinimalEndpoints(),
 				request.getMicrocksHeaders(), request.getGenerateOneOfAnyOf(), request.getValidateSchema(),
-				request.getSchemaIsInline(), request.getIsInline(), request.getSchemaPrettyPrint(), request.getExamples());
+				request.getSchemaIsInline(), request.getIsInline(), request.getSchemaPrettyPrint(), request.getHasScopes(),
+				request.getExamples());
 	}
 
 }

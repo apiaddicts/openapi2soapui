@@ -65,6 +65,9 @@ public class SoapUIProjectRequest {
 	@JsonProperty("isInline")
 	private Boolean isInline;
 
+	@JsonProperty("hasScopes")
+	private Boolean hasScopes;
+
 	@Valid
 	@JsonProperty("examples")
 	private ExamplesConfig examples;

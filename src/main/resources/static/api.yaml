@@ -73,6 +73,8 @@ paths:
 
         Additionally, when the **isInline** flag is set to false (the default), every generated JSON request-body example value is stored as a SoapUI Project Property and referenced from the body via a `${#Project#...}` token, instead of being embedded literally; set to true to embed literal values directly in the body as before.
 
+        Additionally, when the **hasScopes** flag is set to true, an extra test case is generated per configured oAuth2Profiles entry, each wired via its own Credentials config to that specific profile, independent of which profile backs the default request. Has no effect when oAuth2Profiles is empty or not provided (default: false).
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -92,6 +94,7 @@ paths:
           - schemaIsInline: Boolean flag; only relevant when validateSchema is true. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
           - schemaPrettyPrint: Boolean flag; only relevant when validateSchema is true. When true (default), the response JSON Schema is pretty-printed (indented); when false, it is serialized compactly with no extra whitespace
           - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
+          - hasScopes: Boolean flag; when true, generates one additional test case per configured oAuth2Profiles entry, each using that profile's own authentication
         content:
           aplication/json:
             schema:
@@ -509,6 +512,10 @@ components:
         isInline:
           type: boolean
           description: If false (default), JSON request body example values are generated as SoapUI Project Properties and referenced from the body via a "${#Project#...}" token. If true, literal example values are embedded directly in the body instead.
+          example: false
+        hasScopes:
+          type: boolean
+          description: If true, for each generated method, an extra test case is generated per configured oAuth2Profiles entry, each wired to that profile's own OAuth 2.0 authentication, independent of the default test case's request (which always uses only the first oAuth2Profiles entry). No-op when oAuth2Profiles is empty or not provided. Not affected by validateSchema (no schema assertion is added to these variant test cases).
           example: false
         serverPattern:
           type: string
