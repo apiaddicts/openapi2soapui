@@ -69,6 +69,8 @@ paths:
 
         Additionally, when the **validateSchema** flag is true and the **schemaIsInline** flag is set to false (the default), the JSON Schema used by that assertion is stored as a SoapUI Project Property and read from the script at runtime via a `context.expand('${#Project#...}')` call, instead of being embedded literally in the script; set to true to embed the schema directly in the script as before. Has no effect when validateSchema is false.
 
+        Additionally, when the **validateSchema** flag is true and the **schemaPrettyPrint** flag is set to true (the default), the JSON Schema used by that assertion is pretty-printed (indented); set to false to serialize it compactly instead, with no extra whitespace. Has no effect when validateSchema is false.
+
         Additionally, when the **isInline** flag is set to false (the default), every generated JSON request-body example value is stored as a SoapUI Project Property and referenced from the body via a `${#Project#...}` token, instead of being embedded literally; set to true to embed literal values directly in the body as before.
 
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
@@ -88,6 +90,7 @@ paths:
           - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies. allOf is always merged regardless of this flag
           - validateSchema: Boolean flag; when true, adds a Script Assertion to each main test case's request test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
           - schemaIsInline: Boolean flag; only relevant when validateSchema is true. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
+          - schemaPrettyPrint: Boolean flag; only relevant when validateSchema is true. When true (default), the response JSON Schema is pretty-printed (indented); when false, it is serialized compactly with no extra whitespace
           - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
         content:
           aplication/json:
@@ -499,6 +502,10 @@ components:
           type: boolean
           description: Only relevant when validateSchema is true. If false (default), the response JSON Schema used by the validateSchema assertion is generated as a SoapUI Project Property and read from the script at runtime via a "context.expand('${#Project#...}')" call. If true, the schema is embedded directly as a literal in the assertion script instead.
           example: false
+        schemaPrettyPrint:
+          type: boolean
+          description: Only relevant when validateSchema is true. If true (default), the response JSON Schema used by the validateSchema assertion is pretty-printed (indented). If false, it is serialized compactly with no extra whitespace.
+          example: true
         isInline:
           type: boolean
           description: If false (default), JSON request body example values are generated as SoapUI Project Properties and referenced from the body via a "${#Project#...}" token. If true, literal example values are embedded directly in the body instead.

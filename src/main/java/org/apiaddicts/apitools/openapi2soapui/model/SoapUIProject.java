@@ -174,6 +174,12 @@ public class SoapUIProject {
 	 */
 	private boolean schemaIsInline;
 	/**
+	 * Only relevant when validateSchema is true. When true (default), the JSON Schema embedded or
+	 * referenced by the validateSchema assertion is pretty-printed (indented). When false, it is
+	 * serialized compactly (no extra whitespace).
+	 */
+	private boolean schemaPrettyPrint;
+	/**
 	 * Custom example values from request body, used before falling back to internal defaults
 	 */
 	private ExamplesConfig examples;
@@ -210,6 +216,14 @@ public class SoapUIProject {
 	private Map<String, Boolean> currentBodyTokenTypes = new LinkedHashMap<>();
 
 	/**
+	 * Backward-compatible overload; schemaPrettyPrint defaults to true.
+	 */
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+		this(apiName, openAPI, oAuth2Profiles, headers, testCaseNames, readOnly, serverPattern, minimalEndpoints,
+				microcksHeaders, generateOneOfAnyOf, validateSchema, schemaIsInline, isInline, true, examples);
+	}
+
+	/**
 	 * SoapUIProject constructor
 	 * Set default test case names if testCaseNames is null or empty
 	 * Create temporal file to save SoapUI Project
@@ -232,12 +246,13 @@ public class SoapUIProject {
 	 * @param validateSchema if true, adds a Script Assertion to each main test-case request's test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
 	 * @param schemaIsInline only relevant when validateSchema is true; if false (default), the response JSON Schema is stored as a SoapUI Project Property and read via a context.expand("${#Project#key}") call instead of being embedded literally
 	 * @param isInline if false (default), JSON request-body example values are stored as SoapUI Project Properties and referenced via a "${#Project#key}" token instead of being embedded literally
+	 * @param schemaPrettyPrint if true (default), the JSON Schema used by the validateSchema assertion is pretty-printed (indented); if false, it is serialized compactly with no extra whitespace
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -258,6 +273,7 @@ public class SoapUIProject {
 		this.validateSchema = Boolean.TRUE.equals(validateSchema);
 		this.schemaIsInline = Boolean.TRUE.equals(schemaIsInline);
 		this.isInline = Boolean.TRUE.equals(isInline);
+		this.schemaPrettyPrint = !Boolean.FALSE.equals(schemaPrettyPrint);
 
 		createTempFile();
 		
@@ -829,22 +845,34 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Convert Object or JSONObject to JSON String
+	 * Convert Object or JSONObject to JSON String, always pretty-printed (indented)
 	 * @param object to convert
 	 * @return json string
 	 */
 	private String mapObjectToJsonString(Object object) {
+		return mapObjectToJsonString(object, true);
+	}
+
+	/**
+	 * Convert Object or JSONObject to JSON String
+	 * @param object to convert
+	 * @param prettyPrint if true, the JSON is indented; if false, it is serialized compactly with no extra whitespace
+	 * @return json string
+	 */
+	private String mapObjectToJsonString(Object object, boolean prettyPrint) {
 		String jsonString = null;
 		if (object instanceof JSONObject) {
 			try {
-				jsonString = ((JSONObject) object).toString(2);
+				jsonString = prettyPrint ? ((JSONObject) object).toString(2) : ((JSONObject) object).toString();
 			} catch (JSONException e) {
 				log.debug("Error mapObjectToJsonString", e);
 			}
 		} else {
 			ObjectMapper mapper = new ObjectMapper();
 			try {
-				jsonString = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object).replaceAll("\\r", "");
+				jsonString = prettyPrint
+						? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object).replaceAll("\\r", "")
+						: mapper.writeValueAsString(object);
 			} catch (JsonProcessingException e) {
 				log.debug("Error mapObjectToJsonString", e);
 			}
@@ -1245,7 +1273,7 @@ public class SoapUIProject {
 	 * @return Groovy script source, or null if the schema definition could not be serialized
 	 */
 	private String buildSchemaValidationScript(Object jsonSchemaDefinition) {
-		String schemaJson = mapObjectToJsonString(jsonSchemaDefinition);
+		String schemaJson = mapObjectToJsonString(jsonSchemaDefinition, schemaPrettyPrint);
 		if (schemaJson == null) return null;
 		String schemaSource;
 		if (schemaIsInline) {
