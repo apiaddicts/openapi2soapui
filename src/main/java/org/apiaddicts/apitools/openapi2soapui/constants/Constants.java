@@ -38,6 +38,7 @@ public class Constants {
 	public static final String QUERY_PARAM_VARIANT_PREFIX = "queryString ";
 	public static final String QUERY_PARAM_VARIANT_WRONG_SUFFIX = " wrong";
 	public static final String HAS_SCOPES_VARIANT_PREFIX = "scope ";
+	public static final String APPLICATION_TOKEN_VARIANT_PREFIX = "application_token ";
 
 	public static final String MICROCKS_RESPONSE_NAME_HEADER = "X-Microcks-Response-Name";
 }

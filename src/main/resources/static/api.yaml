@@ -75,6 +75,8 @@ paths:
 
         Additionally, when the **hasScopes** flag is set to true, an extra test case is generated per configured oAuth2Profiles entry, each wired via its own Credentials config to that specific profile, independent of which profile backs the default request. Has no effect when oAuth2Profiles is empty or not provided (default: false).
 
+        Additionally, when the **hasScopes** flag is set to true and the **applicationToken** flag is also set to true, an extra test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user), separate from the hasScopes test cases. Has no effect when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured (default: false).
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -95,6 +97,7 @@ paths:
           - schemaPrettyPrint: Boolean flag; only relevant when validateSchema is true. When true (default), the response JSON Schema is pretty-printed (indented); when false, it is serialized compactly with no extra whitespace
           - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
           - hasScopes: Boolean flag; when true, generates one additional test case per configured oAuth2Profiles entry, each using that profile's own authentication
+          - applicationToken: Boolean flag; only relevant when hasScopes is true. When also true, generates one additional test case per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS, separate from the hasScopes test cases
         content:
           aplication/json:
             schema:
@@ -516,6 +519,10 @@ components:
         hasScopes:
           type: boolean
           description: If true, for each generated method, an extra test case is generated per configured oAuth2Profiles entry, each wired to that profile's own OAuth 2.0 authentication, independent of the default test case's request (which always uses only the first oAuth2Profiles entry). No-op when oAuth2Profiles is empty or not provided. Not affected by validateSchema (no schema assertion is added to these variant test cases).
+          example: false
+        applicationToken:
+          type: boolean
+          description: Only relevant when hasScopes is true. If also true, for each generated method, an extra test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user), wired to that profile's own OAuth 2.0 authentication — separate from the hasScopes scope variant test cases. No-op when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured. Not affected by validateSchema (no schema assertion is added to these variant test cases).
           example: false
         serverPattern:
           type: string
