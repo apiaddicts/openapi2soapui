@@ -12,8 +12,10 @@ public class Constants {
 	public static final String SUITE_SUFFIX = "TestSuite";
 	public static final String CASE_SUFFIX = "TestCase";
 	public static final String STEP_SUFFIX = "TestStep";
-	
+
 	public static final String SUCCESS_TEST_CASE = "Success";
+
+	public static final String AUTHORIZATIONS_TEST_SUITE_NAME = "authorizations";
 	
 	public static final String EJECUTION_TEST_STEP = "Execution";
 
@@ -30,6 +32,7 @@ public class Constants {
 	public static final String HEADERS_KEY = "headers";
 	public static final String AUTHENTICATION_PROFILES_KEY = "oAuth2Profiles";
 	public static final String TEST_CASE_NAMES_KEY = "testCaseNames";
+	public static final String CUSTOM_AUTHORIZATIONS_KEY = "customAuthorizationsFile";
 
 	public static final String VALID_HTTP_STATUS_CODES_ASSERTION = "Valid HTTP Status Codes";
 	public static final String SUCCESS_STATUS_CODE = "200";

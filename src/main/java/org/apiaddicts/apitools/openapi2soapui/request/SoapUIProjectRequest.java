@@ -38,6 +38,10 @@ public class SoapUIProjectRequest {
 	@JsonProperty("headers")
 	private List<Header> headers;
 
+	@Valid
+	@JsonProperty("customAuthorizationsFile")
+	private List<CustomAuthorizationRequest> customAuthorizationsFile;
+
 	@JsonProperty("readOnly")
 	private Boolean readOnly;
 

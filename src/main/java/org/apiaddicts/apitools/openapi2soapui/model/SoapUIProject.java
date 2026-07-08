@@ -22,6 +22,7 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_P
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.HAS_SCOPES_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.APPLICATION_TOKEN_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MICROCKS_RESPONSE_NAME_HEADER;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.AUTHORIZATIONS_TEST_SUITE_NAME;
 
 import java.io.File;
 import java.io.IOException;
@@ -105,6 +106,7 @@ import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
 import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
 import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
+import org.apiaddicts.apitools.openapi2soapui.request.CustomAuthorizationRequest;
 import org.apiaddicts.apitools.openapi2soapui.util.QueryParamExampleUtils;
 import org.apiaddicts.apitools.openapi2soapui.util.RefResolver;
 
@@ -274,6 +276,14 @@ public class SoapUIProject {
 	}
 
 	/**
+	 * Backward-compatible overload; customAuthorizationsFile defaults to none.
+	 */
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, Integer numberOfScopes, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+		this(apiName, openAPI, oAuth2Profiles, headers, testCaseNames, readOnly, serverPattern, minimalEndpoints,
+				microcksHeaders, generateOneOfAnyOf, validateSchema, schemaIsInline, isInline, schemaPrettyPrint, hasScopes, applicationToken, numberOfScopes, examples, null);
+	}
+
+	/**
 	 * SoapUIProject constructor
 	 * Set default test case names if testCaseNames is null or empty
 	 * Create temporal file to save SoapUI Project
@@ -282,8 +292,10 @@ public class SoapUIProject {
 	 * Set SoapUI Project Authentication Profiles
 	 * Add REST Service to SoapUI Project
 	 * Set REST Service Endpoints
+	 * Create the "authorizations" Test Suite (empty) if customAuthorizationsFile is not empty, so it is the first Test Suite in the project
 	 * Set REST Service Resources
 	 * Set SoapUI Project Test Cases
+	 * Populate the "authorizations" Test Suite with its synthetic Resources/Methods/Requests and Test Cases
 	 * @param apiName from request body
 	 * @param openAPI OpenAPI Java Object
 	 * @param oAuth2Profiles authentication profiles from request body
@@ -301,11 +313,12 @@ public class SoapUIProject {
 	 * @param applicationToken only relevant when hasScopes is also true; if true, additionally generates one extra test case per configured oAuth2Profiles entry whose grant type is CLIENT_CREDENTIALS, separate from the hasScopes scope variant test cases
 	 * @param numberOfScopes only relevant when hasScopes is also true; the total number of scope variant test cases to generate, using the first numberOfScopes configured oAuth2Profiles entries (in configured order). Values less than 1 (null, zero, negative) are treated as 1, matching openapi2postman's number_of_scopes semantics. Does not affect applicationToken test cases
 	 * @param examples custom example values from request body, used before falling back to internal defaults
+	 * @param customAuthorizationsFile custom authorization requests from request body; if not empty, a dedicated "authorizations" Test Suite is created and added before the per-endpoint Test Suites
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, Integer numberOfScopes, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, Integer numberOfScopes, ExamplesConfig examples, List<CustomAuthorizationRequest> customAuthorizationsFile) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -344,8 +357,18 @@ public class SoapUIProject {
 		restService.setDescription(openAPI.getInfo().getDescription());
 
 		setRestServiceEndpoints(openAPI.getServers(), serverPattern);
+
+		WsdlTestSuite authorizationsTestSuite = null;
+		if (customAuthorizationsFile != null && !customAuthorizationsFile.isEmpty()) {
+			authorizationsTestSuite = project.addNewTestSuite(AUTHORIZATIONS_TEST_SUITE_NAME + "_" + SUITE_SUFFIX);
+		}
+
 		setRestServiceResources(openAPI.getPaths());
 		setTestCases();
+
+		if (authorizationsTestSuite != null) {
+			setCustomAuthorizationTestCases(authorizationsTestSuite, customAuthorizationsFile);
+		}
 	}
 
 	/**
@@ -1076,6 +1099,44 @@ public class SoapUIProject {
 		}
 	}
 	
+	/**
+	 * The Test Suite itself is created (via project.addNewTestSuite) before setRestServiceResources()/setTestCases()
+	 * run, so it is always the first Test Suite in the generated SoapUI Project; the synthetic Resources built here
+	 * are only added to the REST Service afterwards, so setTestCases() never iterates over them and does not
+	 * generate a duplicate, unwanted Test Suite for them
+	 * @param testSuite the already-created "authorizations" Test Suite to populate
+	 * @param customAuthorizationsFile custom authorization requests from request body, in the order they should appear
+	 */
+	private void setCustomAuthorizationTestCases(WsdlTestSuite testSuite, List<CustomAuthorizationRequest> customAuthorizationsFile) {
+		int index = 0;
+		for (CustomAuthorizationRequest customRequest : customAuthorizationsFile) {
+			index++;
+			RestResource restResource = restService.addNewResource(customRequest.getName(),
+					"/" + AUTHORIZATIONS_TEST_SUITE_NAME + "/" + index);
+			RestMethod restMethod = restResource.addNewMethod(customRequest.getName());
+			restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(customRequest.getMethod().toUpperCase()));
+
+			RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
+			restRequest.setEndpoint(customRequest.getEndpoint());
+			restRequest.getConfig().setOriginalUri(customRequest.getEndpoint());
+			if (customRequest.getMediaType() != null && !customRequest.getMediaType().isBlank()) {
+				restRequest.setMediaType(customRequest.getMediaType());
+			}
+			if (customRequest.getBody() != null && !customRequest.getBody().isBlank()) {
+				restRequest.setRequestContent(customRequest.getBody());
+			}
+			if (customRequest.getHeaders() != null && !customRequest.getHeaders().isEmpty()) {
+				StringToStringMap requestHeaders = new StringToStringMap();
+				customRequest.getHeaders().forEach(header -> requestHeaders.put(header.getKey(), header.getValue()));
+				restRequest.setRequestHeaders(requestHeaders);
+			}
+
+			WsdlTestCase testCase = testSuite.addNewTestCase(customRequest.getName() + "_" + CASE_SUFFIX);
+			TestStepConfig stepConfig = RestRequestStepFactory.createConfig(restRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
+			testCase.addTestStep(stepConfig);
+		}
+	}
+
 	/**
 	 * Set Test Cases
 	 * Iterate SoapUI Project Resources and Methods and add Test Suite for each Method

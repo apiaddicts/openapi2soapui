@@ -40,9 +40,11 @@ paths:
         - Method: {httpMethodInUppercase}
         - Request: {defaultRequestName}
         - Test Suite: {path}\_{httpMethodInUppercase}\_TestSuite
+        - Test Suite (Custom Authorizations): authorizations\_TestSuite
         - Test Case (Default): Success\_TestCase
         - Test Case: {testCaseName}\_TestCase
         - Test Case (Query Param Variant): queryString {paramName}\_TestCase / queryString {paramName} wrong\_TestCase
+        - Test Case (Custom Authorization item): {customAuthorizationName}\_TestCase
         - Test Step: Execution\_TestStep
 
         The variables are obtained from:
@@ -56,6 +58,8 @@ paths:
         To generate __oAuth 2.0 Profiles__ in the __SoapUI Project__, a list of elements with the name "oAuth2Profiles" must be defined as part of the request body with the configuration of each profile.
 
         Additionally, it is possible to add custom headers to each of the requests, defining a list of key-value elements with the name "headers" as part of the request body, where key indicates the name of the header and value the value of the header.
+
+        Additionally, it is possible to prepend custom authorization requests, defining a list of elements with the name "customAuthorizationsFile" as part of the request body, each with a name, method, endpoint and optional headers/mediaType/body. These are generated as a dedicated **authorizations\_TestSuite**, added before every per-endpoint Test Suite, mirroring openapi2postman's custom_authorizations_file behaviour of prepending custom authorization requests ahead of the generated ones.
 
         Additionally, when the **readOnly** flag is set to true, only GET and OPTIONS test cases are generated; POST, PUT, PATCH and DELETE operations are excluded.
 
@@ -90,6 +94,7 @@ paths:
           - openApiSpec: Base-64 encoded OpenAPI Spec
           - testCaseNames: List with the names of the test cases
           - headers: List of custom headers
+          - customAuthorizationsFile: List of custom authorization requests, prepended as a dedicated "authorizations" Test Suite before the per-endpoint Test Suites
           - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
           - minimalEndpoints: Boolean flag; when false (default), also generates a valid/invalid test case pair per optional query parameter
           - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
@@ -183,6 +188,12 @@ paths:
             - 1007: testCaseNames field must be an array.
             - 1008: testCaseNames field items must be strings.
             - 1401: The testCaseNames items cannot be empty.
+            - 1009: customAuthorizationsFile field must be an array.
+            - 1010: customAuthorizationsFile field items must be objects.
+            - 1501: For the customAuthorizationsFile items, the name attribute is mandatory.
+            - 1502: For the customAuthorizationsFile items, the method attribute is mandatory.
+            - 1503: For the customAuthorizationsFile items, the endpoint attribute is mandatory.
+            - 1504: For the customAuthorizationsFile items, the method attribute is invalid.
           content:
             application/json:
               schema:
@@ -487,6 +498,8 @@ components:
             example: Success
         headers:
           $ref: '#/components/schemas/Headers'
+        customAuthorizationsFile:
+          $ref: '#/components/schemas/CustomAuthorizationsFile'
         readOnly:
           type: boolean
           description: If true, only GET and OPTIONS test cases are generated. POST, PUT, PATCH and DELETE are excluded.
@@ -579,6 +592,40 @@ components:
             type: string
             description: Value of header param
             example: ewogIm5hbWUiIDogIm5vbWJyZSIsCiAiZGlyIiA6ICJkaXIiCn0
+    CustomAuthorizationsFile:
+      type: array
+      description: List of custom authorization requests, prepended as a dedicated "authorizations" Test Suite before the per-endpoint Test Suites
+      items:
+        $ref: '#/components/schemas/CustomAuthorizationRequest'
+    CustomAuthorizationRequest:
+      required:
+      - name
+      - method
+      - endpoint
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the authorization request; used to build the Resource, Method and Test Case names
+          example: Application token
+        method:
+          type: string
+          description: HTTP method of the authorization request
+          example: POST
+        endpoint:
+          type: string
+          description: Full URL the authorization request is sent to
+          example: https://api.example.com/security/token
+        headers:
+          $ref: '#/components/schemas/Headers'
+        mediaType:
+          type: string
+          description: Content-Type of the authorization request body
+          example: application/x-www-form-urlencoded
+        body:
+          type: string
+          description: Raw body content of the authorization request
+          example: grant_type=client_credentials&client_id={{client_id}}&client_secret={{client_secret}}
     OAuth2ProfileWithExistingToken:
       type: object
       properties:
