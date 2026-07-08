@@ -131,7 +131,7 @@ class ApplicationTokenTest {
 				authorizationCodeProfile("user"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("application_token app_TestCase"), xml);

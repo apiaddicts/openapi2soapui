@@ -85,6 +85,7 @@ class SoapUIProjectControllerApplicationTokenTest {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
 		body.put("applicationToken", true);
+		body.put("numberOfScopes", 2);
 		body.put("oAuth2Profiles", List.of(clientCredentialsProfile("dev"), authorizationCodeProfile("user")));
 
 		mockMvc.perform(post(basePath + "/soap-ui-projects")

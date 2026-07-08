@@ -77,6 +77,8 @@ paths:
 
         Additionally, when the **hasScopes** flag is set to true and the **applicationToken** flag is also set to true, an extra test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user), separate from the hasScopes test cases. Has no effect when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured (default: false).
 
+        Additionally, when the **hasScopes** flag is set to true, the **numberOfScopes** value sets the total number of scope variant test cases to generate, using the first numberOfScopes configured oAuth2Profiles entries in configured order (mirrors openapi2postman's number_of_scopes). Values below 1 (unset, 0, or negative) are treated as 1: exactly one scope variant is generated, using the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Has no effect when hasScopes is false, or when oAuth2Profiles is empty or not provided. Does not affect applicationToken test cases.
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -98,6 +100,7 @@ paths:
           - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
           - hasScopes: Boolean flag; when true, generates one additional test case per configured oAuth2Profiles entry, each using that profile's own authentication
           - applicationToken: Boolean flag; only relevant when hasScopes is true. When also true, generates one additional test case per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS, separate from the hasScopes test cases
+          - numberOfScopes: Integer; only relevant when hasScopes is true. Total number of scope variant test cases to generate, using the first N configured oAuth2Profiles entries in configured order (mirrors openapi2postman's number_of_scopes). Values below 1 (unset/0/negative) are treated as 1
         content:
           aplication/json:
             schema:
@@ -524,6 +527,10 @@ components:
           type: boolean
           description: Only relevant when hasScopes is true. If also true, for each generated method, an extra test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user), wired to that profile's own OAuth 2.0 authentication — separate from the hasScopes scope variant test cases. No-op when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured. Not affected by validateSchema (no schema assertion is added to these variant test cases).
           example: false
+        numberOfScopes:
+          type: integer
+          description: Only relevant when hasScopes is true. Total number of scope variant test cases to generate, using the first numberOfScopes configured oAuth2Profiles entries in configured order (mirrors openapi2postman's number_of_scopes). Values below 1 (unset, 0, or negative) are treated as 1 — exactly one scope variant is generated, using the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Does not affect applicationToken test cases.
+          example: 1
         serverPattern:
           type: string
           description: Pattern to select the OpenAPI server used as endpoint. Wrap the substring with % (e.g. %dev%). If no server matches, the first server is used.

@@ -64,7 +64,7 @@ class HasScopesTest {
 	}
 
 	@Test
-	void multipleProfiles_generateOneVariantEach() throws Exception {
+	void multipleProfiles_hasScopesDefault_onlyGeneratesFirstProfileVariant() throws Exception {
 		OpenAPI openAPI = parseSpec();
 		List<OAuth2Profile> profiles = Arrays.asList(
 				grantTypeProfile("dev", "openid"),
@@ -75,8 +75,24 @@ class HasScopesTest {
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertFalse(xml.contains("scope admin_TestCase"), "Without numberOfScopes, only the first configured profile gets a scope variant, matching openapi2postman's default (scope1 only): " + xml);
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + 1 scope variant (floor of 1)");
+	}
+
+	@Test
+	void multipleProfiles_numberOfScopesTwo_generatesVariantForEachRequestedProfile() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
 		assertTrue(xml.contains("scope admin_TestCase"), xml);
-		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + 2 scope variants");
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + 2 scope variants, matching openapi2postman's number_of_scopes=2");
 	}
 
 	@Test
@@ -113,7 +129,7 @@ class HasScopesTest {
 				grantTypeProfile("admin", "openid, write"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, null);
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		int defaultRequestStart = xml.indexOf("name=\"Request 1\"");
@@ -123,6 +139,97 @@ class HasScopesTest {
 		String defaultRequestBlock = xml.substring(defaultRequestStart, scopeDevRequestStart);
 		assertTrue(defaultRequestBlock.contains("dev"), "Default request should still reference the first profile (dev): " + defaultRequestBlock);
 		assertFalse(defaultRequestBlock.contains("admin"), "Default request must not reference the second profile: " + defaultRequestBlock);
+	}
+
+	@Test
+	void numberOfScopesZero_isTreatedAsFloorOfOne() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 0, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertFalse(xml.contains("scope admin_TestCase"), xml);
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "numberOfScopes=0 must behave like unset: floor of 1, matching openapi2postman");
+	}
+
+	@Test
+	void numberOfScopesLessThanProfileCount_capsToFirstN() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"),
+				grantTypeProfile("qa", "openid, read"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope admin_TestCase"), xml);
+		assertFalse(xml.contains("scope qa_TestCase"), "numberOfScopes=2 must only use the first 2 configured profiles: " + xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + 2 capped scope variants");
+	}
+
+	@Test
+	void numberOfScopesGreaterThanOrEqualToProfileCount_isANoOp() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 5, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope admin_TestCase"), xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "numberOfScopes >= profile count must not cap");
+	}
+
+	@Test
+	void numberOfScopesNegative_isTreatedAsFloorOfOne() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, -1, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Negative numberOfScopes must floor to 1, matching openapi2postman");
+	}
+
+	@Test
+	void numberOfScopesSet_hasScopesFalse_silentlyIgnored() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(grantTypeProfile("dev", "openid"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, false, false, 1, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertFalse(xml.contains("scope "), "hasScopes=false must ignore numberOfScopes entirely");
+		assertEquals(1, countOccurrences(xml, "<con:testCase"), "Only the default test case should exist");
+	}
+
+	@Test
+	void legacyOverload_defaultsNumberOfScopesToFloorOfOne() throws Exception {
+		OpenAPI openAPI = parseSpec();
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Legacy overload without numberOfScopes must default to floor of 1");
 	}
 
 	private int countOccurrences(String haystack, String needle) {

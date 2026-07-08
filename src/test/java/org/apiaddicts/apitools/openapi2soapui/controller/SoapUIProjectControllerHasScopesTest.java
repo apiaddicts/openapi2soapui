@@ -70,9 +70,10 @@ class SoapUIProjectControllerHasScopesTest {
 	}
 
 	@Test
-	void hasScopesTrueWithMultipleProfiles_endToEndGeneratesScopeVariants() throws Exception {
+	void hasScopesTrueWithMultipleProfiles_numberOfScopesTwo_endToEndGeneratesScopeVariants() throws Exception {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
+		body.put("numberOfScopes", 2);
 		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
 
 		mockMvc.perform(post(basePath + "/soap-ui-projects")
@@ -93,6 +94,177 @@ class SoapUIProjectControllerHasScopesTest {
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
 				.andExpect(content().string(not(containsString("scope "))));
+	}
+
+	@Test
+	void numberOfScopesCapsScopeVariantsEndToEnd() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", 2);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin"), validProfile("qa")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(containsString("scope admin_TestCase")))
+				.andExpect(content().string(not(containsString("scope qa_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesOmitted_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesAsNumericString_isCoercedAndCapsCorrectly() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", "1");
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesAsDecimal_isTruncatedAndCapsCorrectly() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", 1.7);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesExplicitNull_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", null);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesNegative_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", -1);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+	}
+
+	@Test
+	void numberOfScopesVeryLarge_endToEndUsesAllProfiles() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", 999999999);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(containsString("scope admin_TestCase")));
+	}
+
+	@Test
+	void numberOfScopesWithHasScopesExplicitFalse_endToEndIgnored() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", false);
+		body.put("numberOfScopes", 1);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(not(containsString("scope "))));
+	}
+
+	@Test
+	void numberOfScopesWithoutHasScopesKeyAtAll_endToEndIgnored() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("numberOfScopes", 1);
+		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isOk())
+				.andExpect(content().string(not(containsString("scope "))));
+	}
+
+	@Test
+	void numberOfScopesNonNumericString_returns400Gracefully() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", "abc");
+		body.put("oAuth2Profiles", List.of(validProfile("dev")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void numberOfScopesBoolean_returns400Gracefully() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", true);
+		body.put("oAuth2Profiles", List.of(validProfile("dev")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void numberOfScopesArray_returns400Gracefully() throws Exception {
+		Map<String, Object> body = baseRequestBody();
+		body.put("hasScopes", true);
+		body.put("numberOfScopes", List.of(1, 2));
+		body.put("oAuth2Profiles", List.of(validProfile("dev")));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isBadRequest());
 	}
 
 	@Test

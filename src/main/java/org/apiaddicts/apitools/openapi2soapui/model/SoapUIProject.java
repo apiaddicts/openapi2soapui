@@ -212,6 +212,16 @@ public class SoapUIProject {
 	 */
 	private boolean applicationToken;
 	/**
+	 * Only relevant when hasScopes is also true. Mirrors openapi2postman's number_of_scopes: the total
+	 * number of scope variant Test Cases to generate, using the first numberOfScopes configured OAuth2
+	 * Profiles (in the order they were added to the SoapUI Project). Values less than 1 (null, zero, or
+	 * negative) are treated as 1 — exactly one variant, using the first configured profile — matching
+	 * openapi2postman, which always generates at least one scope-token variant. Values greater than or
+	 * equal to the configured profile count use all configured profiles. Does not affect applicationToken
+	 * Test Cases.
+	 */
+	private int numberOfScopes;
+	/**
 	 * Incremented once per JSON request body generated (see getRequestExample), used as a
 	 * globally-unique prefix for Project Property keys so that fields with the same name/path
 	 * across different operations never collide.
@@ -256,6 +266,14 @@ public class SoapUIProject {
 	}
 
 	/**
+	 * Backward-compatible overload; numberOfScopes defaults to unset (no cap — all configured profiles are used).
+	 */
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+		this(apiName, openAPI, oAuth2Profiles, headers, testCaseNames, readOnly, serverPattern, minimalEndpoints,
+				microcksHeaders, generateOneOfAnyOf, validateSchema, schemaIsInline, isInline, schemaPrettyPrint, hasScopes, applicationToken, null, examples);
+	}
+
+	/**
 	 * SoapUIProject constructor
 	 * Set default test case names if testCaseNames is null or empty
 	 * Create temporal file to save SoapUI Project
@@ -281,12 +299,13 @@ public class SoapUIProject {
 	 * @param schemaPrettyPrint if true (default), the JSON Schema used by the validateSchema assertion is pretty-printed (indented); if false, it is serialized compactly with no extra whitespace
 	 * @param hasScopes if true, generates one additional test case per configured oAuth2Profiles entry, each wired to that profile's own authentication, independent of the default request (which always uses the first profile)
 	 * @param applicationToken only relevant when hasScopes is also true; if true, additionally generates one extra test case per configured oAuth2Profiles entry whose grant type is CLIENT_CREDENTIALS, separate from the hasScopes scope variant test cases
+	 * @param numberOfScopes only relevant when hasScopes is also true; the total number of scope variant test cases to generate, using the first numberOfScopes configured oAuth2Profiles entries (in configured order). Values less than 1 (null, zero, negative) are treated as 1, matching openapi2postman's number_of_scopes semantics. Does not affect applicationToken test cases
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @throws IOException
 	 * @throws XmlException
 	 * @throws SoapUIException
 	 */
-	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
+	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, Integer numberOfScopes, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this.apiName = apiName;
 		this.openAPI = openAPI;
 		this.headers = headers;
@@ -310,6 +329,7 @@ public class SoapUIProject {
 		this.schemaPrettyPrint = !Boolean.FALSE.equals(schemaPrettyPrint);
 		this.hasScopes = Boolean.TRUE.equals(hasScopes);
 		this.applicationToken = Boolean.TRUE.equals(applicationToken);
+		this.numberOfScopes = (numberOfScopes != null) ? numberOfScopes : 0;
 
 		createTempFile();
 
@@ -1507,17 +1527,22 @@ public class SoapUIProject {
 
 	/**
 	 * Add Scope Variant Test Cases
-	 * For every configured OAuth2 Profile (in the order they were added to the SoapUI Project), add an
-	 * additional Test Case wired to that specific profile via its own Credentials config, independent of the
-	 * default Request (which always uses only the first profile, see setRequestAuthProfile). Includes the
-	 * first profile too (no special-casing), for consistency/coverage even though it duplicates the default
-	 * request's effective auth profile. No-op when there are no configured OAuth2 Profiles.
+	 * Adds one Test Case per profile among the first numberOfScopes configured OAuth2 Profiles (in the
+	 * order they were added to the SoapUI Project, floored to 1 — see numberOfScopes), each wired to that
+	 * specific profile via its own Credentials config, independent of the default Request (which always
+	 * uses only the first profile, see setRequestAuthProfile). Includes the first profile too (no
+	 * special-casing), for consistency/coverage even though it duplicates the default request's effective
+	 * auth profile. No-op when there are no configured OAuth2 Profiles.
 	 * @param restMethod instance of Method to generate variants for
 	 * @param testSuite Test Suite to add the variant Test Cases to
 	 */
 	private void addScopeVariantTestCases(RestMethod restMethod, WsdlTestSuite testSuite) {
 		List<OAuth2Profile> oAuth2ProfileList = project.getOAuth2ProfileContainer().getOAuth2ProfileList();
 		if (oAuth2ProfileList == null || oAuth2ProfileList.isEmpty()) return;
+		int desiredScopeCount = Math.max(numberOfScopes, 1);
+		if (desiredScopeCount < oAuth2ProfileList.size()) {
+			oAuth2ProfileList = oAuth2ProfileList.subList(0, desiredScopeCount);
+		}
 		RestRequest defaultRequest = restMethod.getRequestByName(DEFAULT_REQUEST_NAME);
 		oAuth2ProfileList.forEach(oAuth2Profile -> addScopeVariantTestCase(restMethod, defaultRequest, testSuite, oAuth2Profile));
 	}

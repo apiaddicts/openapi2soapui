@@ -153,7 +153,7 @@ class ApplicationTokenEdgeCasesTest {
 				clientCredentialsProfile("dev"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(2, countOccurrences(xml, "application_token dev_TestCase"));
@@ -169,7 +169,7 @@ class ApplicationTokenEdgeCasesTest {
 		}
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 25, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(1 + 25 + 25, countOccurrences(xml, "<con:testCase"), "Default + 25 application_token variants + 25 scope variants");

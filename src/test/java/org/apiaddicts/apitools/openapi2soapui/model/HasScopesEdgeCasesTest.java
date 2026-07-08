@@ -302,14 +302,83 @@ class HasScopesEdgeCasesTest {
 				grantTypeProfile("dev", "write"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, null);
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(2, countOccurrences(xml, "scope dev_TestCase"));
 	}
 
 	@Test
-	void largeNumberOfProfiles_generatesOneVariantEachWithoutError() throws Exception {
+	void numberOfScopesCapsAmongDuplicateProfileNames() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("dev", "write"),
+				grantTypeProfile("dev", "read"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertEquals(2, countOccurrences(xml, "scope dev_TestCase"), "Cap must apply positionally even when profile names repeat, without crashing");
+	}
+
+	@Test
+	void numberOfScopesEqualsProfileCount_isANoOp() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope admin_TestCase"), xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "numberOfScopes exactly equal to the profile count must use all of them");
+	}
+
+	@Test
+	void numberOfScopesIntegerMaxValue_isTreatedAsNoCapWithoutOverflow() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, Integer.MAX_VALUE, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Integer.MAX_VALUE must behave like any other value >= profile count: use all, no overflow");
+	}
+
+	@Test
+	void numberOfScopesSet_nullProfiles_isStillANoOpWithoutCrashing() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 3, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertFalse(xml.contains("scope "), "numberOfScopes must not cause a crash or spurious variants when oAuth2Profiles is null: " + xml);
+		assertEquals(1, countOccurrences(xml, "<con:testCase"));
+	}
+
+	@Test
+	void numberOfScopesSet_emptyProfilesList_isStillANoOpWithoutCrashing() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = Collections.emptyList();
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 3, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertFalse(xml.contains("scope "), "numberOfScopes must not cause a crash or spurious variants when oAuth2Profiles is empty: " + xml);
+	}
+
+	@Test
+	void largeNumberOfProfiles_numberOfScopesMatchingCount_generatesOneVariantEachWithoutError() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
 		List<OAuth2Profile> profiles = new ArrayList<>();
 		for (int i = 0; i < 25; i++) {
@@ -317,10 +386,10 @@ class HasScopesEdgeCasesTest {
 		}
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, null);
+				false, null, true, false, false, false, false, false, false, true, false, 25, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(1 + 25, countOccurrences(xml, "<con:testCase"), "Default test case plus one variant per profile");
+		assertEquals(1 + 25, countOccurrences(xml, "<con:testCase"), "Default test case plus one variant per requested profile");
 		for (int i = 0; i < 25; i++) {
 			assertTrue(xml.contains("scope profile" + i + "_TestCase"), "Missing variant for profile" + i + ": " + xml);
 		}
@@ -335,7 +404,7 @@ class HasScopesEdgeCasesTest {
 		Set<String> testCaseNames = new LinkedHashSet<>(Arrays.asList("Success", "Alt"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, testCaseNames,
-				false, null, false, true, true, true, true, true, true, true, null);
+				false, null, false, true, true, true, true, true, true, true, false, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(6, countOccurrences(xml, "<con:testCase"));
@@ -364,7 +433,7 @@ class HasScopesEdgeCasesTest {
 				oAuth2Profile("password", GrantType.RESOURCE_OWNER_PASSWORD_CREDENTIALS, "openid"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, null);
+				false, null, true, false, false, false, false, false, false, true, false, 3, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("scope authCode_TestCase"), xml);
@@ -383,6 +452,47 @@ class HasScopesEdgeCasesTest {
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(4, countOccurrences(xml, "abc123"), "Custom header value should appear on both the default request and the scope-variant clone: " + xml);
+	}
+
+	@Test
+	void numberOfScopesCapsAmongLargeProfileList() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = new ArrayList<>();
+		for (int i = 0; i < 25; i++) {
+			profiles.add(grantTypeProfile("profile" + i, "openid"));
+		}
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 10, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertEquals(1 + 10, countOccurrences(xml, "<con:testCase"), "Default test case plus 10 capped scope variants");
+		for (int i = 0; i < 10; i++) {
+			assertTrue(xml.contains("scope profile" + i + "_TestCase"), "Missing variant for profile" + i + ": " + xml);
+		}
+		for (int i = 10; i < 25; i++) {
+			assertFalse(xml.contains("scope profile" + i + "_TestCase"), "Should not generate variant for profile" + i + " beyond the cap: " + xml);
+		}
+	}
+
+	@Test
+	void numberOfScopesCap_coexistsWithApplicationToken_onlyAffectsScopeVariants() throws Exception {
+		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
+		List<OAuth2Profile> profiles = Arrays.asList(
+				grantTypeProfile("dev", "openid"),
+				grantTypeProfile("admin", "openid, write"),
+				grantTypeProfile("qa", "openid, read"));
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
+				false, null, true, false, false, false, false, false, false, true, true, 1, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertTrue(xml.contains("application_token dev_TestCase"), "numberOfScopes must not cap applicationToken variants: " + xml);
+		assertTrue(xml.contains("application_token admin_TestCase"), xml);
+		assertTrue(xml.contains("application_token qa_TestCase"), xml);
+		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertFalse(xml.contains("scope admin_TestCase"), "numberOfScopes=1 must cap scope variants to the first profile: " + xml);
+		assertFalse(xml.contains("scope qa_TestCase"), xml);
 	}
 
 	@Test

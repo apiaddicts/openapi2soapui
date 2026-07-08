@@ -71,6 +71,9 @@ public class SoapUIProjectRequest {
 	@JsonProperty("applicationToken")
 	private Boolean applicationToken;
 
+	@JsonProperty("numberOfScopes")
+	private Integer numberOfScopes;
+
 	@Valid
 	@JsonProperty("examples")
 	private ExamplesConfig examples;
