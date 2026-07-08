@@ -112,4 +112,45 @@ class ValidateSchemaScriptTest {
 
 		assertFalse(script.trim().isEmpty());
 	}
+
+	private static final String SELECT_PARAM_SPEC = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /users:",
+			"    get:",
+			"      operationId: getUsers",
+			"      parameters:",
+			"        - name: $select",
+			"          in: query",
+			"          required: false",
+			"          schema:",
+			"            type: string",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"          content:",
+			"            application/json:",
+			"              schema:",
+			"                type: object",
+			"                properties:",
+			"                  id:",
+			"                    type: integer"
+	);
+
+	@Test
+	void operationWithSelectQueryParam_skipsSchemaValidationAssertion() throws Exception {
+		SwaggerParseResult result = new OpenAPIV3Parser().readContents(SELECT_PARAM_SPEC, null, null);
+		OpenAPI openAPI = result.getOpenAPI();
+		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, true, true, false, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertFalse(xml.contains("Script Assertion"),
+				"An operation with a $select query parameter must not get a schema-validation assertion, since a partial response would not match the full schema: " + xml);
+	}
 }

@@ -73,6 +73,44 @@ class QueryParamExampleUtilsTest {
 	}
 
 	@Test
+	void invalidValue_usesConfiguredOverride_forArraySchema() {
+		ExampleValues wrong = new ExampleValues();
+		wrong.setArray("[1,2,3]");
+		assertEquals("[1,2,3]", QueryParamExampleUtils.invalidValue(new ArraySchema(), wrong));
+	}
+
+	@Test
+	void invalidValue_usesConfiguredOverride_forObjectSchema() {
+		ExampleValues wrong = new ExampleValues();
+		wrong.setObject("{\"bad\":true}");
+		assertEquals("{\"bad\":true}", QueryParamExampleUtils.invalidValue(new ObjectSchema(), wrong));
+	}
+
+	@Test
+	void validValue_returnsEmptyArrayLiteral_forArraySchemaByDefault() {
+		assertEquals("[]", QueryParamExampleUtils.validValue(new ArraySchema(), null));
+	}
+
+	@Test
+	void validValue_usesConfiguredOverride_forArraySchema() {
+		ExampleValues successful = new ExampleValues();
+		successful.setArray("[\"a\",\"b\"]");
+		assertEquals("[\"a\",\"b\"]", QueryParamExampleUtils.validValue(new ArraySchema(), successful));
+	}
+
+	@Test
+	void validValue_returnsEmptyObjectLiteral_forObjectSchemaByDefault() {
+		assertEquals("{}", QueryParamExampleUtils.validValue(new ObjectSchema(), null));
+	}
+
+	@Test
+	void validValue_usesConfiguredOverride_forObjectSchema() {
+		ExampleValues successful = new ExampleValues();
+		successful.setObject("{\"id\":1}");
+		assertEquals("{\"id\":1}", QueryParamExampleUtils.validValue(new ObjectSchema(), successful));
+	}
+
+	@Test
 	void invalidValue_setsInvalidMonth_forDateSchema() {
 		DateSchema schema = new DateSchema();
 		schema.setExample("2024-01-01");

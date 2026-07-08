@@ -94,7 +94,7 @@ class SoapUIProjectControllerApplicationTokenTest {
 				.andExpect(status().isOk())
 				.andExpect(content().string(containsString("application_token dev_TestCase")))
 				.andExpect(content().string(not(containsString("application_token user_TestCase"))))
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(containsString("scope user_TestCase")));
 	}
 
@@ -115,13 +115,14 @@ class SoapUIProjectControllerApplicationTokenTest {
 	void applicationTokenOmitted_endToEndGeneratesOnlyScopeVariants() throws Exception {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
-		body.put("oAuth2Profiles", List.of(clientCredentialsProfile("dev")));
+		body.put("numberOfScopes", 2);
+		body.put("oAuth2Profiles", List.of(clientCredentialsProfile("dev"), authorizationCodeProfile("user")));
 
 		mockMvc.perform(post(basePath + "/soap-ui-projects")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
 				.andExpect(content().string(not(containsString("application_token "))))
-				.andExpect(content().string(containsString("scope dev_TestCase")));
+				.andExpect(content().string(containsString("scope user_TestCase")));
 	}
 }

@@ -35,13 +35,15 @@ public class Constants {
 	public static final String CUSTOM_AUTHORIZATIONS_KEY = "customAuthorizationsFile";
 
 	public static final String VALID_HTTP_STATUS_CODES_ASSERTION = "Valid HTTP Status Codes";
-	public static final String SUCCESS_STATUS_CODE = "200";
 	public static final String WRONG_STATUS_CODE = "400";
 	public static final String SCRIPT_ASSERTION = "Script Assertion";
-	public static final String QUERY_PARAM_VARIANT_PREFIX = "queryString ";
-	public static final String QUERY_PARAM_VARIANT_WRONG_SUFFIX = " wrong";
+	public static final String MISSING_BODY_PROPERTY_VARIANT_PREFIX = "missing ";
+	public static final String WRONG_BODY_PROPERTY_VARIANT_PREFIX = "wrong ";
 	public static final String HAS_SCOPES_VARIANT_PREFIX = "scope ";
 	public static final String APPLICATION_TOKEN_VARIANT_PREFIX = "application_token ";
 
 	public static final String MICROCKS_RESPONSE_NAME_HEADER = "X-Microcks-Response-Name";
+
+	public static final String SELECT_QUERY_PARAM = "$select";
+	public static final String EXCLUDE_QUERY_PARAM = "$exclude";
 }

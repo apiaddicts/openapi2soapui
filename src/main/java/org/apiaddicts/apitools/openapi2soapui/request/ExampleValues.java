@@ -25,4 +25,10 @@ public class ExampleValues {
 
 	@JsonProperty("dateTime")
 	private String dateTime;
+
+	@JsonProperty("array")
+	private String array;
+
+	@JsonProperty("object")
+	private String object;
 }

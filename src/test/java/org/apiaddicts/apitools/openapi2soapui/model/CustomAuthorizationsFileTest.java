@@ -215,7 +215,7 @@ class CustomAuthorizationsFileTest {
 	}
 
 	@Test
-	void orderIsPreservedAsGiven_unlikeOpenapi2postmansUnshiftReversal() throws Exception {
+	void orderIsPreservedAsGiven() throws Exception {
 		OpenAPI openAPI = parseSpec();
 		List<CustomAuthorizationRequest> customAuthorizationsFile = Arrays.asList(
 				customAuthorization("First", "POST", "https://api.example.com/security/first"),
@@ -360,20 +360,28 @@ class CustomAuthorizationsFileTest {
 		List<CustomAuthorizationRequest> customAuthorizationsFile = Arrays.asList(
 				customAuthorization("Login", "POST", "https://api.example.com/security/token"));
 
-		OAuth2Profile profile = new OAuth2Profile();
-		profile.setProfileName("dev");
-		profile.setGrantType(GrantType.CLIENT_CREDENTIALS);
-		profile.setClientId("clientId");
-		profile.setClientSecret("clientSecret");
-		profile.setAccessTokenURI("http://api.example.com/token");
-		profile.setAccessTokenPosition(AccessTokenPosition.HEADER);
+		OAuth2Profile devProfile = new OAuth2Profile();
+		devProfile.setProfileName("dev");
+		devProfile.setGrantType(GrantType.CLIENT_CREDENTIALS);
+		devProfile.setClientId("clientId");
+		devProfile.setClientSecret("clientSecret");
+		devProfile.setAccessTokenURI("http://api.example.com/token");
+		devProfile.setAccessTokenPosition(AccessTokenPosition.HEADER);
 
-		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, Arrays.asList(profile), null, null,
-				false, null, true, false, false, false, false, false, false, true, false, null, null, customAuthorizationsFile);
+		OAuth2Profile adminProfile = new OAuth2Profile();
+		adminProfile.setProfileName("admin");
+		adminProfile.setGrantType(GrantType.CLIENT_CREDENTIALS);
+		adminProfile.setClientId("clientId");
+		adminProfile.setClientSecret("clientSecret");
+		adminProfile.setAccessTokenURI("http://api.example.com/token");
+		adminProfile.setAccessTokenPosition(AccessTokenPosition.HEADER);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, Arrays.asList(devProfile, adminProfile), null, null,
+				false, null, true, false, false, false, false, false, false, true, false, 2, null, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("Login_TestCase"), xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope admin_TestCase"), "The default test case already covers the first profile (dev); only the second gets an extra scope variant: " + xml);
 		List<Element> testSuites = testSuitesInOrder(xml);
 		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), "The authorizations suite must still be first even when hasScopes/oAuth2Profiles are also used: " + xml);
 	}

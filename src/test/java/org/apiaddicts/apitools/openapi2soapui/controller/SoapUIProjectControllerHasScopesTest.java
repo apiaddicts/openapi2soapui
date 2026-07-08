@@ -80,7 +80,7 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(containsString("scope admin_TestCase")));
 	}
 
@@ -107,13 +107,13 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(containsString("scope admin_TestCase")))
 				.andExpect(content().string(not(containsString("scope qa_TestCase"))));
 	}
 
 	@Test
-	void numberOfScopesOmitted_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+	void numberOfScopesOmitted_endToEndGeneratesNoExtraVariant() throws Exception {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
 		body.put("oAuth2Profiles", List.of(validProfile("dev"), validProfile("admin")));
@@ -122,7 +122,7 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
 	}
 
@@ -137,7 +137,7 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
 	}
 
@@ -152,12 +152,12 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
 	}
 
 	@Test
-	void numberOfScopesExplicitNull_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+	void numberOfScopesExplicitNull_endToEndGeneratesNoExtraVariant() throws Exception {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
 		body.put("numberOfScopes", null);
@@ -167,12 +167,12 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
 	}
 
 	@Test
-	void numberOfScopesNegative_endToEndGeneratesOnlyFirstProfileVariant() throws Exception {
+	void numberOfScopesNegative_endToEndGeneratesNoExtraVariant() throws Exception {
 		Map<String, Object> body = baseRequestBody();
 		body.put("hasScopes", true);
 		body.put("numberOfScopes", -1);
@@ -182,7 +182,7 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
 	}
 
@@ -197,7 +197,7 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("scope dev_TestCase")))
+				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
 				.andExpect(content().string(containsString("scope admin_TestCase")));
 	}
 

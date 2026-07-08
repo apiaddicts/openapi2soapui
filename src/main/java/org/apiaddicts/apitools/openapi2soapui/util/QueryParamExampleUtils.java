@@ -39,8 +39,8 @@ public final class QueryParamExampleUtils {
 		if (schema instanceof StringSchema) return validStringValue((StringSchema) schema, successfulExamples);
 		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return validNumberValue(successfulExamples);
 		if (schema instanceof BooleanSchema) return validBooleanValue(successfulExamples);
-		if (schema instanceof ArraySchema) return "[]";
-		if (schema instanceof ObjectSchema) return "{}";
+		if (schema instanceof ArraySchema) return configuredOrDefault(successfulExamples, ExampleValues::getArray, "[]");
+		if (schema instanceof ObjectSchema) return configuredOrDefault(successfulExamples, ExampleValues::getObject, "{}");
 		return "value";
 	}
 
@@ -60,8 +60,8 @@ public final class QueryParamExampleUtils {
 		if (schema instanceof DateSchema) return invalidDate((DateSchema) schema, wrongExamples);
 		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return invalidNumber(schema, wrongExamples);
 		if (schema instanceof BooleanSchema) return configuredOrDefault(wrongExamples, v -> v.getBooleanValue() != null ? v.getBooleanValue().toString() : null, "badboolean");
-		if (schema instanceof ArraySchema) return "badarray";
-		if (schema instanceof ObjectSchema) return "badobject";
+		if (schema instanceof ArraySchema) return configuredOrDefault(wrongExamples, ExampleValues::getArray, "badarray");
+		if (schema instanceof ObjectSchema) return configuredOrDefault(wrongExamples, ExampleValues::getObject, "badobject");
 		return "badvalue";
 	}
 

@@ -14,15 +14,16 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.DEFAULT
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.JSON;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_TEST_CASE;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.VALID_HTTP_STATUS_CODES_ASSERTION;
-import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SUCCESS_STATUS_CODE;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.WRONG_STATUS_CODE;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SCRIPT_ASSERTION;
-import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_PREFIX;
-import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.QUERY_PARAM_VARIANT_WRONG_SUFFIX;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MISSING_BODY_PROPERTY_VARIANT_PREFIX;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.WRONG_BODY_PROPERTY_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.HAS_SCOPES_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.APPLICATION_TOKEN_VARIANT_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.MICROCKS_RESPONSE_NAME_HEADER;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.AUTHORIZATIONS_TEST_SUITE_NAME;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SELECT_QUERY_PARAM;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.EXCLUDE_QUERY_PARAM;
 
 import java.io.File;
 import java.io.IOException;
@@ -153,7 +154,11 @@ public class SoapUIProject {
 	 */
 	private boolean readOnly;
 	/**
-	 * When false, an extra valid/invalid test case pair is generated for each optional query parameter
+	 * When false (default), for every Method with a JSON request body, generates one 400 Test Case per required
+	 * body property missing (recursing into nested required objects) plus one 400 Test Case per scalar body
+	 * property given an invalid value — each variant otherwise using normal values for every other property.
+	 * When true, collapses this to at most one "missing required property" Test Case (the first one found) and
+	 * zero "wrong value" Test Cases.
 	 */
 	private boolean minimalEndpoints;
 	/**
@@ -201,9 +206,11 @@ public class SoapUIProject {
 	private boolean isInline;
 	/**
 	 * When true, in addition to the testCaseNames-based Test Cases, generates one extra Test Case per
-	 * configured OAuth2 Profile, each wired to that specific profile via its own Credentials config —
-	 * independent of the default Request, which always uses the first profile (see setRequestAuthProfile).
-	 * No-op when there are no configured OAuth2 Profiles.
+	 * configured OAuth2 Profile beyond the first, each wired to that specific profile via its own
+	 * Credentials config — independent of the default Request, which always uses the first profile (see
+	 * setRequestAuthProfile) and is never duplicated by an extra Test Case for that same profile. No-op
+	 * when there are no configured OAuth2 Profiles, or when only one is configured (or numberOfScopes
+	 * resolves to 1): the default Request alone already covers that single variant.
 	 */
 	private boolean hasScopes;
 	/**
@@ -214,13 +221,15 @@ public class SoapUIProject {
 	 */
 	private boolean applicationToken;
 	/**
-	 * Only relevant when hasScopes is also true. Mirrors openapi2postman's number_of_scopes: the total
-	 * number of scope variant Test Cases to generate, using the first numberOfScopes configured OAuth2
-	 * Profiles (in the order they were added to the SoapUI Project). Values less than 1 (null, zero, or
-	 * negative) are treated as 1 — exactly one variant, using the first configured profile — matching
-	 * openapi2postman, which always generates at least one scope-token variant. Values greater than or
-	 * equal to the configured profile count use all configured profiles. Does not affect applicationToken
-	 * Test Cases.
+	 * Only relevant when hasScopes is also true. The total
+	 * number of Test Cases wired to a profile-based scope credential for this Method — counting both the
+	 * default Request (always the first configured profile) and any extra scope-variant Test Cases —
+	 * using the first numberOfScopes configured OAuth2 Profiles (in the order they were added to the
+	 * SoapUI Project). Values less than 1 (null, zero, or negative) are treated as 1: no extra Test Case
+	 * is generated, since the default Request alone already covers the first (and only) profile, whose scope-variant loop starts at the second scope-token variable rather
+	 * than duplicating the default request. Values greater than or equal to the configured profile count
+	 * use all configured profiles (default Request + one extra Test Case per remaining profile). Does not
+	 * affect applicationToken Test Cases.
 	 */
 	private int numberOfScopes;
 	/**
@@ -242,6 +251,35 @@ public class SoapUIProject {
 	 * around the token (a Java String) when the real value is not itself a JSON string.
 	 */
 	private Map<String, Boolean> currentBodyTokenTypes = new LinkedHashMap<>();
+	/**
+	 * While building a minimalEndpoints body-property-variant Test Case, the dotted path of the one required
+	 * property to omit from the JSON body being built (see addBodyPropertyVariantTestCase); null otherwise,
+	 * so the normal (main test case) body-building path is unaffected
+	 */
+	private String bodyVariantOmitPath;
+	/**
+	 * While building a minimalEndpoints body-property-variant Test Case, the one property whose value should
+	 * be substituted with a type-aware invalid value instead of its normal example (see
+	 * addBodyPropertyVariantTestCase); null otherwise, so the normal (main test case) body-building path is
+	 * unaffected
+	 */
+	private BodyPropertyCandidate bodyVariantWrongCandidate;
+
+	/**
+	 * A single candidate body property found by collectBodyPropertyCandidates, eligible to become a
+	 * minimalEndpoints "wrong value" variant Test Case
+	 */
+	private static final class BodyPropertyCandidate {
+		private final String path;
+		@SuppressWarnings("rawtypes")
+		private final Schema schema;
+
+		@SuppressWarnings("rawtypes")
+		private BodyPropertyCandidate(String path, Schema schema) {
+			this.path = path;
+			this.schema = schema;
+		}
+	}
 
 	/**
 	 * Backward-compatible overload; schemaPrettyPrint defaults to true.
@@ -268,7 +306,8 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Backward-compatible overload; numberOfScopes defaults to unset (no cap — all configured profiles are used).
+	 * Backward-compatible overload; numberOfScopes defaults to null, treated as 1 (no extra scope-variant
+	 * Test Case beyond the default Request — see the numberOfScopes field javadoc).
 	 */
 	public SoapUIProject(String apiName, OpenAPI openAPI, List<org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile> oAuth2Profiles, List<Header> headers, Set<String> testCaseNames, Boolean readOnly, String serverPattern, Boolean minimalEndpoints, Boolean microcksHeaders, Boolean generateOneOfAnyOf, Boolean validateSchema, Boolean schemaIsInline, Boolean isInline, Boolean schemaPrettyPrint, Boolean hasScopes, Boolean applicationToken, ExamplesConfig examples) throws IOException, XmlException, SoapUIException {
 		this(apiName, openAPI, oAuth2Profiles, headers, testCaseNames, readOnly, serverPattern, minimalEndpoints,
@@ -302,16 +341,16 @@ public class SoapUIProject {
 	 * @param headers from request body
 	 * @param testCaseNames from request body
 	 * @param readOnly if true, only GET and OPTIONS test cases are generated
-	 * @param minimalEndpoints if false, an extra valid/invalid test case pair is generated for each optional query parameter
+	 * @param minimalEndpoints if false (default), generates a 400 test case per missing required body property and per invalid-value body property; if true, collapses this to at most one missing-required case and none for invalid values
 	 * @param microcksHeaders if true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
 	 * @param generateOneOfAnyOf if true, oneOf/anyOf schemas are resolved using their first candidate when generating example bodies
 	 * @param validateSchema if true, adds a Script Assertion to each main test-case request's test step that validates the response body against the JSON Schema of the operation's first 2xx JSON response
 	 * @param schemaIsInline only relevant when validateSchema is true; if false (default), the response JSON Schema is stored as a SoapUI Project Property and read via a context.expand("${#Project#key}") call instead of being embedded literally
 	 * @param isInline if false (default), JSON request-body example values are stored as SoapUI Project Properties and referenced via a "${#Project#key}" token instead of being embedded literally
 	 * @param schemaPrettyPrint if true (default), the JSON Schema used by the validateSchema assertion is pretty-printed (indented); if false, it is serialized compactly with no extra whitespace
-	 * @param hasScopes if true, generates one additional test case per configured oAuth2Profiles entry, each wired to that profile's own authentication, independent of the default request (which always uses the first profile)
+	 * @param hasScopes if true, generates one additional test case per configured oAuth2Profiles entry beyond the first, each wired to that profile's own authentication, independent of the default request (which always uses the first profile and is never duplicated by an extra test case)
 	 * @param applicationToken only relevant when hasScopes is also true; if true, additionally generates one extra test case per configured oAuth2Profiles entry whose grant type is CLIENT_CREDENTIALS, separate from the hasScopes scope variant test cases
-	 * @param numberOfScopes only relevant when hasScopes is also true; the total number of scope variant test cases to generate, using the first numberOfScopes configured oAuth2Profiles entries (in configured order). Values less than 1 (null, zero, negative) are treated as 1, matching openapi2postman's number_of_scopes semantics. Does not affect applicationToken test cases
+	 * @param numberOfScopes only relevant when hasScopes is also true; the total number of test cases wired to a profile-based scope credential, counting the default request, using the first numberOfScopes configured oAuth2Profiles entries (in configured order). Values less than 1 (null, zero, negative) are treated as 1 (no extra test case). Does not affect applicationToken test cases
 	 * @param examples custom example values from request body, used before falling back to internal defaults
 	 * @param customAuthorizationsFile custom authorization requests from request body; if not empty, a dedicated "authorizations" Test Suite is created and added before the per-endpoint Test Suites
 	 * @throws IOException
@@ -387,7 +426,7 @@ public class SoapUIProject {
 	 */
 	private void setRestServiceEndpoints(List<Server> servers, String serverPattern) {
 		if (servers == null || servers.isEmpty()) return;
-		List<Server> filtered = servers;
+		List<Server> filtered;
 		if (serverPattern != null && !serverPattern.isBlank()) {
 			String cleanPattern = serverPattern.replace("%", "");
 			Optional<Server> match = servers.stream()
@@ -396,6 +435,8 @@ public class SoapUIProject {
 			filtered = match.isPresent()
 					? Collections.singletonList(match.get())
 					: Collections.singletonList(servers.get(0));
+		} else {
+			filtered = Collections.singletonList(servers.get(0));
 		}
 		for (Server server : filtered) {
 			String serverUrl = server.getUrl();
@@ -760,8 +801,9 @@ public class SoapUIProject {
 		JSONObject json = new JSONObject();
 		if (properties != null  && !properties.isEmpty()) {
 			properties.forEach((propertyName, property) -> {
-				property = refResolver.resolveSchema(property);
 				String childPath = path.isEmpty() ? propertyName : path + "_" + propertyName;
+				if (childPath.equals(bodyVariantOmitPath)) return;
+				property = refResolver.resolveSchema(property);
 				try {
 					Object example = getPropertyExample(property, refResolver, childPath);
 					json.put(propertyName, example);
@@ -785,6 +827,9 @@ public class SoapUIProject {
 	 */
 	@SuppressWarnings("rawtypes")
 	private Object getPropertyExample(Schema property, RefResolver refResolver, String path) throws JSONException {
+		if (bodyVariantWrongCandidate != null && path.equals(bodyVariantWrongCandidate.path)) {
+			return registerBodyValue(path, QueryParamExampleUtils.invalidValue(bodyVariantWrongCandidate.schema, examples != null ? examples.getWrong() : null));
+		}
 		Object example = property.getExample();
 		if (example != null) {
 			return registerBodyValue(path, example);
@@ -1157,9 +1202,10 @@ public class SoapUIProject {
 	/**
 	 * Add Test Suite for a single Method
 	 * Skipped for non read-only Methods when readOnly is true
-	 * Adds a Test Case per configured test case name, plus optional query parameter variant Test Cases
+	 * Adds a Test Case per configured test case name, plus minimalEndpoints body-property-variant Test Cases
 	 * When validateSchema is true, also attaches a Script Assertion validating the response body against the
-	 * operation's JSON Schema to each main test step
+	 * operation's JSON Schema to each main test step, unless the operation declares a $select/$exclude query
+	 * parameter (a partial response would not match the full schema)
 	 * @param restResource instance of Resource owning the Method
 	 * @param restMethod instance of Method to generate the Test Suite for
 	 */
@@ -1174,13 +1220,11 @@ public class SoapUIProject {
 			WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 			TestStepConfig ejecutionTestStepConfig = RestRequestStepFactory.createConfig(restMethod.getRequestByName(DEFAULT_REQUEST_NAME), EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 			WsdlTestStep testStep = testCase.addTestStep(ejecutionTestStepConfig);
-			if (validateSchema) {
+			if (validateSchema && !hasPartialResponseQueryParam(operation)) {
 				addSchemaValidationAssertion(testStep, operation);
 			}
 		}
-		if (!minimalEndpoints) {
-			addQueryParamVariantTestCases(restResource, restMethod, testSuite);
-		}
+		addBodyPropertyVariantTestCases(restMethod, testSuite, operation);
 		if (hasScopes) {
 			if (applicationToken) {
 				addApplicationTokenTestCases(restMethod, testSuite);
@@ -1498,25 +1542,6 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Add Query Param Variant Test Cases
-	 * For each optional query parameter of the Operation bound to this Method, add a valid and an invalid
-	 * test case, each asserting the corresponding HTTP status code (200 or 400)
-	 * @param restResource instance of Resource owning the Method
-	 * @param restMethod instance of Method to generate variants for
-	 * @param testSuite Test Suite to add the variant Test Cases to
-	 */
-	private void addQueryParamVariantTestCases(RestResource restResource, RestMethod restMethod, WsdlTestSuite testSuite) {
-		Operation operation = operationByMethodKey.get(methodKey(restResource.getPath(), restMethod.getMethod().name()));
-		if (operation == null) return;
-		List<Parameter> queryParams = getQueryParameters(operation.getParameters());
-		RestRequest defaultRequest = restMethod.getRequestByName(DEFAULT_REQUEST_NAME);
-		getOptionalParameters(queryParams).forEach(param -> {
-			addQueryParamVariantTestCase(restMethod, defaultRequest, testSuite, queryParams, param, false);
-			addQueryParamVariantTestCase(restMethod, defaultRequest, testSuite, queryParams, param, true);
-		});
-	}
-
-	/**
 	 * Build a stable key identifying a Method within the SoapUI Project, independent of object identity,
 	 * to bridge OpenAPI Operation data between setMethodsRequests and setTestCases
 	 * @param path Resource path
@@ -1528,53 +1553,171 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Get Query Parameters
-	 * Filter OpenAPI Parameters to keep only the ones in the query
-	 * @param parameters list of OpenAPI Parameters to filter
-	 * @return list of query Parameters
+	 * Has Partial Response Query Param
+	 * True when the Operation declares a $select or $exclude query parameter (OData-style partial response
+	 * selection), in which case a schema-validation assertion is skipped, since a partial response will not
+	 * match the operation's full JSON Schema.
+	 * @param operation instance of OpenAPI Operation, or null
+	 * @return true if a $select/$exclude query parameter is declared
 	 */
-	private List<Parameter> getQueryParameters(List<Parameter> parameters) {
-		if (parameters == null) return Collections.emptyList();
-		return parameters.stream()
+	private boolean hasPartialResponseQueryParam(Operation operation) {
+		if (operation == null || operation.getParameters() == null) return false;
+		return operation.getParameters().stream()
 				.filter(param -> QUERY.equalsIgnoreCase(param.getIn()))
-				.collect(Collectors.toList());
+				.anyMatch(param -> SELECT_QUERY_PARAM.equalsIgnoreCase(param.getName()) || EXCLUDE_QUERY_PARAM.equalsIgnoreCase(param.getName()));
 	}
 
 	/**
-	 * Get Optional Parameters
-	 * Filter Parameters to keep only the ones that are not required
-	 * @param parameters list of Parameters to filter
-	 * @return list of optional Parameters
+	 * Add Body Property Variant Test Cases
+	 * Targets the Method's JSON request
+	 * body rather than query parameters. Performs a preorder, depth-first walk of the body schema to find:
+	 *  - every required property (recursing into nested required objects/arrays of objects), each becoming a
+	 *    400 Test Case that omits just that one property from an otherwise-normal body
+	 *  - every scalar/object/array property, each becoming a 400 Test Case that substitutes a type-aware
+	 *    invalid value for just that one property, leaving every other property with its normal value
+	 * No-op when the Method has no JSON request body
+	 * @param restMethod instance of Method to generate variants for
+	 * @param testSuite Test Suite to add the variant Test Cases to
+	 * @param operation instance of OpenAPI Operation bound to this Method, or null if unknown
 	 */
-	private List<Parameter> getOptionalParameters(List<Parameter> parameters) {
-		return parameters.stream()
-				.filter(param -> !Boolean.TRUE.equals(param.getRequired()))
-				.collect(Collectors.toList());
+	@SuppressWarnings("rawtypes")
+	private void addBodyPropertyVariantTestCases(RestMethod restMethod, WsdlTestSuite testSuite, Operation operation) {
+		if (operation == null || operation.getRequestBody() == null) return;
+		Content content = operation.getRequestBody().getContent();
+		if (content == null) return;
+		MediaType jsonMediaType = null;
+		for (Map.Entry<String, MediaType> entry : content.entrySet()) {
+			if (entry.getKey().toLowerCase().contains(JSON)) {
+				jsonMediaType = entry.getValue();
+				break;
+			}
+		}
+		if (jsonMediaType == null || jsonMediaType.getSchema() == null) return;
+
+		RefResolver refResolver = new RefResolver(openAPI);
+		Schema bodySchema = resolveComposedSchema(refResolver.resolveSchema(jsonMediaType.getSchema()), refResolver);
+		if (bodySchema.getProperties() == null) return;
+
+		List<String> requiredPaths = new ArrayList<>();
+		collectRequiredPropertyPaths(bodySchema, refResolver, "", requiredPaths);
+		if (minimalEndpoints && requiredPaths.size() > 1) {
+			requiredPaths = requiredPaths.subList(0, 1);
+		}
+
+		List<BodyPropertyCandidate> wrongCandidates = new ArrayList<>();
+		if (!minimalEndpoints) {
+			collectBodyPropertyCandidates(bodySchema, refResolver, "", wrongCandidates);
+		}
+
+		RestRequest defaultRequest = restMethod.getRequestByName(DEFAULT_REQUEST_NAME);
+		for (String requiredPath : requiredPaths) {
+			addBodyPropertyVariantTestCase(restMethod, defaultRequest, testSuite, bodySchema, refResolver, operation, requiredPath, null);
+		}
+		for (BodyPropertyCandidate wrongCandidate : wrongCandidates) {
+			addBodyPropertyVariantTestCase(restMethod, defaultRequest, testSuite, bodySchema, refResolver, operation, null, wrongCandidate);
+		}
 	}
 
 	/**
-	 * Add Query Param Variant Test Case
-	 * Clone the default Request (carrying over its endpoint, auth, media type, body and headers), then
-	 * explicitly set every query parameter to a valid value, except the targeted parameter which gets
-	 * an invalid value on the "wrong" variant
-	 * Add a Test Case with this Request and a "Valid HTTP Status Codes" assertion for the expected status code
+	 * Collect Required Property Paths
+	 * Preorder, depth-first walk of the schema tree: at each node, first collects every property named in that
+	 * node's own "required" list (in declared order), then recurses into every object/array-of-object property
+	 * (whether required or not) in properties-map order, so nested required properties are found after every
+	 * required property of their ancestors
+	 * @param schema schema node to inspect
+	 * @param refResolver instance of RefResolver
+	 * @param path underscore-joined property path built so far
+	 * @param out accumulator for dotted paths of required properties found, in discovery order
+	 */
+	@SuppressWarnings("rawtypes")
+	private void collectRequiredPropertyPaths(Schema schema, RefResolver refResolver, String path, List<String> out) {
+		if (schema == null) return;
+		schema = resolveComposedSchema(refResolver.resolveSchema(schema), refResolver);
+		if (schema.getRequired() != null) {
+			for (Object requiredName : schema.getRequired()) {
+				out.add(path.isEmpty() ? requiredName.toString() : path + "_" + requiredName);
+			}
+		}
+		Map<String, Schema> properties = schema.getProperties();
+		if (properties == null) return;
+		properties.forEach((name, property) -> {
+			String childPath = path.isEmpty() ? name : path + "_" + name;
+			Schema resolvedProperty = resolveComposedSchema(refResolver.resolveSchema(property), refResolver);
+			if (resolvedProperty instanceof ObjectSchema) {
+				collectRequiredPropertyPaths(resolvedProperty, refResolver, childPath, out);
+			} else if (resolvedProperty instanceof ArraySchema) {
+				collectRequiredPropertyPaths(((ArraySchema) resolvedProperty).getItems(), refResolver, childPath + "_item", out);
+			}
+		});
+	}
+
+	/**
+	 * Collect Body Property Candidates
+	 * Preorder, depth-first walk of the schema tree: every property (of any type — object, array, or scalar)
+	 * becomes a "wrong value" candidate, and every object/array-of-object property is also recursed into so its
+	 * own children become independent candidates too
+	 * @param schema schema node to inspect
+	 * @param refResolver instance of RefResolver
+	 * @param path underscore-joined property path built so far
+	 * @param out accumulator for candidates found, in discovery order
+	 */
+	@SuppressWarnings("rawtypes")
+	private void collectBodyPropertyCandidates(Schema schema, RefResolver refResolver, String path, List<BodyPropertyCandidate> out) {
+		if (schema == null) return;
+		Schema resolved = resolveComposedSchema(refResolver.resolveSchema(schema), refResolver);
+		Map<String, Schema> properties = resolved.getProperties();
+		if (properties == null) return;
+		properties.forEach((name, property) -> {
+			String childPath = path.isEmpty() ? name : path + "_" + name;
+			Schema resolvedProperty = resolveComposedSchema(refResolver.resolveSchema(property), refResolver);
+			out.add(new BodyPropertyCandidate(childPath, resolvedProperty));
+			if (resolvedProperty instanceof ObjectSchema) {
+				collectBodyPropertyCandidates(resolvedProperty, refResolver, childPath, out);
+			} else if (resolvedProperty instanceof ArraySchema) {
+				Schema items = refResolver.resolveSchema(((ArraySchema) resolvedProperty).getItems());
+				collectBodyPropertyCandidates(items, refResolver, childPath + "_item", out);
+			}
+		});
+	}
+
+	/**
+	 * Add Body Property Variant Test Case
+	 * Clones the default Request, rebuilds its JSON body with exactly one property either omitted
+	 * (omitPath, the "missing required property" variant) or substituted with an invalid value
+	 * (wrongCandidate, the "wrong value" variant), and adds a Test Case asserting HTTP status 400.
+	 * When microcksHeaders is true, the X-Microcks-Response-Name header is recomputed for status 400 specifically.
 	 * @param restMethod instance of Method to add the variant Request to
 	 * @param defaultRequest the Method's default Request, cloned as the base for the variant Request
 	 * @param testSuite Test Suite to add the variant Test Case to
-	 * @param queryParams all query Parameters of the Operation, so every one can be given an explicit valid value
-	 * @param targetParam optional query Parameter being varied
-	 * @param wrong when true, generates the invalid-value variant (expects 400), otherwise the valid-value variant (expects 200)
+	 * @param bodySchema resolved JSON request body schema
+	 * @param refResolver instance of RefResolver
+	 * @param operation instance of OpenAPI Operation, used to resolve the status-400 Microcks example name
+	 * @param omitPath dotted path of the required property to omit, or null for a "wrong value" variant
+	 * @param wrongCandidate property to substitute with an invalid value, or null for a "missing" variant
 	 */
-	private void addQueryParamVariantTestCase(RestMethod restMethod, RestRequest defaultRequest, WsdlTestSuite testSuite,
-			List<Parameter> queryParams, Parameter targetParam, boolean wrong) {
-		String requestName = QUERY_PARAM_VARIANT_PREFIX + targetParam.getName() + (wrong ? QUERY_PARAM_VARIANT_WRONG_SUFFIX : "");
+	@SuppressWarnings("rawtypes")
+	private void addBodyPropertyVariantTestCase(RestMethod restMethod, RestRequest defaultRequest, WsdlTestSuite testSuite,
+			Schema bodySchema, RefResolver refResolver, Operation operation, String omitPath, BodyPropertyCandidate wrongCandidate) {
+		String targetPath = omitPath != null ? omitPath : wrongCandidate.path;
+		String requestName = (omitPath != null ? MISSING_BODY_PROPERTY_VARIANT_PREFIX : WRONG_BODY_PROPERTY_VARIANT_PREFIX) + targetPath;
 		RestRequest variantRequest = restMethod.cloneRequest(defaultRequest, requestName);
 
-		queryParams.forEach(param -> {
-			boolean isTarget = param.getName().equals(targetParam.getName());
-			String value = (isTarget && wrong) ? getInvalidQueryParamValue(param) : getValidQueryParamValue(param);
-			variantRequest.setPropertyValue(param.getName(), value);
-		});
+		bodyPropertyCounter++;
+		currentBodyTokenTypes = new LinkedHashMap<>();
+		bodyVariantOmitPath = omitPath;
+		bodyVariantWrongCandidate = wrongCandidate;
+		try {
+			JSONObject body = iterateProperties(bodySchema.getProperties(), refResolver, "");
+			String exampleStr = mapObjectToJsonString(body);
+			exampleStr = stripQuotesAroundNonStringTokens(exampleStr);
+			if (exampleStr != null) {
+				variantRequest.setRequestContent(exampleStr);
+			}
+		} finally {
+			bodyVariantOmitPath = null;
+			bodyVariantWrongCandidate = null;
+		}
+		applyMicrocksHeaderForStatus(variantRequest, operation, WRONG_STATUS_CODE);
 
 		String testCaseName = requestName + "_" + CASE_SUFFIX;
 		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
@@ -1583,7 +1726,7 @@ public class SoapUIProject {
 
 		ValidHttpStatusCodesAssertion assertion = (ValidHttpStatusCodesAssertion)
 				((RestTestRequestStep) testStep).addAssertion(VALID_HTTP_STATUS_CODES_ASSERTION);
-		assertion.setCodes(wrong ? WRONG_STATUS_CODE : SUCCESS_STATUS_CODE);
+		assertion.setCodes(WRONG_STATUS_CODE);
 	}
 
 	/**
@@ -1591,9 +1734,9 @@ public class SoapUIProject {
 	 * Adds one Test Case per profile among the first numberOfScopes configured OAuth2 Profiles (in the
 	 * order they were added to the SoapUI Project, floored to 1 — see numberOfScopes), each wired to that
 	 * specific profile via its own Credentials config, independent of the default Request (which always
-	 * uses only the first profile, see setRequestAuthProfile). Includes the first profile too (no
-	 * special-casing), for consistency/coverage even though it duplicates the default request's effective
-	 * auth profile. No-op when there are no configured OAuth2 Profiles.
+	 * uses only the first profile, see setRequestAuthProfile). The first profile is skipped here: the
+	 * default Request already uses it, so an extra Test Case for that same profile would be a pure
+	 * duplicate. No-op when there are no configured OAuth2 Profiles.
 	 * @param restMethod instance of Method to generate variants for
 	 * @param testSuite Test Suite to add the variant Test Cases to
 	 */
@@ -1604,8 +1747,10 @@ public class SoapUIProject {
 		if (desiredScopeCount < oAuth2ProfileList.size()) {
 			oAuth2ProfileList = oAuth2ProfileList.subList(0, desiredScopeCount);
 		}
+		if (oAuth2ProfileList.size() <= 1) return;
 		RestRequest defaultRequest = restMethod.getRequestByName(DEFAULT_REQUEST_NAME);
-		oAuth2ProfileList.forEach(oAuth2Profile -> addScopeVariantTestCase(restMethod, defaultRequest, testSuite, oAuth2Profile));
+		oAuth2ProfileList.subList(1, oAuth2ProfileList.size())
+				.forEach(oAuth2Profile -> addScopeVariantTestCase(restMethod, defaultRequest, testSuite, oAuth2Profile));
 	}
 
 	/**
@@ -1678,26 +1823,41 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Get Valid Query Param Value
-	 * Prefer the OpenAPI Parameter example (example/examples/x-example), falling back to a type-aware
-	 * generic value (honoring enum values when present) when no example is defined
-	 * @param param OpenAPI Parameter to compute a valid value for
-	 * @return valid value as String
+	 * Get Microcks Example Name For Status
+	 * Looks up the named example for the given literal status code, falling back to the "default" response.
+	 * @param operation instance of OpenAPI Operation
+	 * @param statusCode literal status code to look up (e.g. "400")
+	 * @return example name, or null if that status/default response has no named example
 	 */
-	private String getValidQueryParamValue(Parameter param) {
-		Object example = getParameterExample(param);
-		if (example != null && !example.toString().isBlank()) return example.toString();
-		return QueryParamExampleUtils.validValue(param.getSchema(), examples != null ? examples.getSuccessful() : null);
+	private String getMicrocksExampleNameForStatus(Operation operation, String statusCode) {
+		if (operation == null || operation.getResponses() == null) return null;
+		ApiResponse response = operation.getResponses().get(statusCode);
+		if (response == null) {
+			response = operation.getResponses().getDefault();
+		}
+		return getFirstExampleName(response);
 	}
 
 	/**
-	 * Get Invalid Query Param Value
-	 * Compute a type-aware invalid value for the targeted parameter's schema, used for the "wrong" variant
-	 * @param param OpenAPI Parameter to compute an invalid value for
-	 * @return invalid value as String
+	 * Apply Microcks Header For Status
+	 * When microcksHeaders is true, rebuilds the given Request's headers (custom headers plus a fresh
+	 * X-Microcks-Response-Name) using the named example for the given status code specifically, instead of
+	 * the operation-wide first-2xx-or-default value the Request inherited from setRequestHeaders. Used for
+	 * body-property-variant Test Cases, which have a well-defined target status distinct from the
+	 * operation's success response.
+	 * @param request the Request to update
+	 * @param operation instance of OpenAPI Operation, used to resolve the example name
+	 * @param statusCode literal status code this Request targets
 	 */
-	private String getInvalidQueryParamValue(Parameter param) {
-		return QueryParamExampleUtils.invalidValue(param.getSchema(), examples != null ? examples.getWrong() : null);
+	private void applyMicrocksHeaderForStatus(RestRequest request, Operation operation, String statusCode) {
+		if (!microcksHeaders) return;
+		StringToStringMap requestHeaders = new StringToStringMap();
+		if (headers != null && !headers.isEmpty()) {
+			headers.forEach(header -> requestHeaders.put(header.getKey(), header.getValue()));
+		}
+		String exampleName = getMicrocksExampleNameForStatus(operation, statusCode);
+		requestHeaders.put(MICROCKS_RESPONSE_NAME_HEADER, exampleName != null ? exampleName : DEFAULT);
+		request.setRequestHeaders(requestHeaders);
 	}
 
 	/**

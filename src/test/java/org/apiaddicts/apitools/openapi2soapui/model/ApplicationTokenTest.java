@@ -152,18 +152,19 @@ class ApplicationTokenTest {
 	@Test
 	void clientCredentialsProfile_hasScopesAndApplicationToken_generatesBothVariantsInOrder() throws Exception {
 		OpenAPI openAPI = parseSpec();
-		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"), authorizationCodeProfile("user"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("application_token dev_TestCase"), "Should contain an application_token variant test case: " + xml);
-		assertTrue(xml.contains("scope dev_TestCase"), "Should still contain the hasScopes variant test case: " + xml);
-		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + application_token variant + scope variant");
+		assertTrue(xml.contains("scope user_TestCase"), "Should still contain the hasScopes variant test case for the second (non-default) profile: " + xml);
+		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev); it must not be duplicated: " + xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + application_token variant + 1 extra scope variant");
 
 		int applicationTokenIndex = xml.indexOf("name=\"application_token dev\"");
-		int scopeIndex = xml.indexOf("name=\"scope dev\"");
+		int scopeIndex = xml.indexOf("name=\"scope user\"");
 		assertTrue(applicationTokenIndex >= 0 && scopeIndex >= 0, xml);
 		assertTrue(applicationTokenIndex < scopeIndex, "application_token variant should be generated before the scope variant: " + xml);
 	}
@@ -171,15 +172,16 @@ class ApplicationTokenTest {
 	@Test
 	void nonClientCredentialsProfile_hasScopesAndApplicationToken_generatesOnlyScopeVariant() throws Exception {
 		OpenAPI openAPI = parseSpec();
-		List<OAuth2Profile> profiles = Arrays.asList(authorizationCodeProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(authorizationCodeProfile("dev"), authorizationCodeProfile("user"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("application_token dev_TestCase"), "AUTHORIZATION_CODE profiles must not generate an application_token variant: " + xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
-		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + scope variant only");
+		assertFalse(xml.contains("application_token "), "AUTHORIZATION_CODE profiles must not generate an application_token variant: " + xml);
+		assertTrue(xml.contains("scope user_TestCase"), xml);
+		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev): " + xml);
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + 1 extra scope variant only");
 	}
 
 	@Test
@@ -199,15 +201,16 @@ class ApplicationTokenTest {
 	@Test
 	void hasScopesTrue_applicationTokenFalse_generatesOnlyScopeVariant() throws Exception {
 		OpenAPI openAPI = parseSpec();
-		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"), clientCredentialsProfile("admin"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, false, null);
+				false, null, true, false, false, false, false, false, false, true, false, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertFalse(xml.contains("application_token "), xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
-		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + scope variant only");
+		assertTrue(xml.contains("scope admin_TestCase"), xml);
+		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev): " + xml);
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + 1 extra scope variant only");
 	}
 
 	@Test
@@ -223,9 +226,9 @@ class ApplicationTokenTest {
 
 		assertTrue(xml.contains("application_token app_TestCase"), xml);
 		assertFalse(xml.contains("application_token user_TestCase"), xml);
-		assertTrue(xml.contains("scope app_TestCase"), xml);
+		assertFalse(xml.contains("scope app_TestCase"), "The default test case already covers the first profile (app): " + xml);
 		assertTrue(xml.contains("scope user_TestCase"), xml);
-		assertEquals(4, countOccurrences(xml, "<con:testCase"), "Default + 1 application_token variant + 2 scope variants");
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + 1 application_token variant + 1 extra scope variant");
 	}
 
 	@Test
@@ -251,20 +254,20 @@ class ApplicationTokenTest {
 		String xml = soapUIProject.getFileContent();
 
 		assertFalse(xml.contains("application_token "), "Legacy overload must default applicationToken to false: " + xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertFalse(xml.contains("scope dev_TestCase"), "With a single profile the default test case already covers it; no extra scope variant is generated: " + xml);
 	}
 
 	@Test
 	void profileWithoutGrantType_hasScopesAndApplicationTokenTrue_noApplicationTokenVariantButScopeVariantRemains() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC);
-		List<OAuth2Profile> profiles = Arrays.asList(accessTokenOnlyProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(accessTokenOnlyProfile("dev"), accessTokenOnlyProfile("admin"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertFalse(xml.contains("application_token "), "A profile with no grantType must not generate an application_token variant: " + xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope admin_TestCase"), xml);
 	}
 
 	@Test
@@ -278,8 +281,8 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(2, countOccurrences(xml, "application_token dev_TestCase"));
-		assertEquals(2, countOccurrences(xml, "scope dev_TestCase"));
+		assertEquals(2, countOccurrences(xml, "application_token dev_TestCase"), "applicationToken generates one variant per CLIENT_CREDENTIALS profile, including the first");
+		assertEquals(1, countOccurrences(xml, "scope dev_TestCase"), "The default test case already covers the first profile; only the second gets an extra scope variant");
 	}
 
 	@Test
@@ -294,7 +297,7 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 25, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(1 + 25 + 25, countOccurrences(xml, "<con:testCase"), "Default + 25 application_token variants + 25 scope variants");
+		assertEquals(1 + 25 + 24, countOccurrences(xml, "<con:testCase"), "Default + 25 application_token variants (one per profile, including the first) + 24 extra scope variants (all but the first, already covered by the default)");
 		for (int i = 0; i < 25; i++) {
 			assertTrue(xml.contains("application_token profile" + i + "_TestCase"), "Missing application_token variant for profile" + i + ": " + xml);
 		}
@@ -315,11 +318,11 @@ class ApplicationTokenTest {
 	@Test
 	void applicationTokenVariantPreservesCustomHeadersFromDefaultRequest() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC);
-		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"), authorizationCodeProfile("user"));
 		List<Header> headers = Arrays.asList(header("X-Custom", "abc123"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, headers, null,
-				false, null, true, false, false, false, false, false, false, true, true, null);
+				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertEquals(6, countOccurrences(xml, "abc123"), "Custom header value should appear on the default request, the application_token clone and the scope clone: " + xml);
@@ -328,15 +331,15 @@ class ApplicationTokenTest {
 	@Test
 	void kitchenSink_allOtherFlagsEnabledSimultaneously_doesNotCrash() throws Exception {
 		OpenAPI openAPI = parseSpec(SINGLE_QUERY_PARAM_SPEC);
-		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"));
+		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"), authorizationCodeProfile("user"));
 		Set<String> testCaseNames = new LinkedHashSet<>(Arrays.asList("Success", "Alt"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, testCaseNames,
-				false, null, false, true, true, true, true, true, true, true, true, null);
+				false, null, false, true, true, true, true, true, true, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
 		assertTrue(xml.contains("application_token dev_TestCase"), xml);
-		assertTrue(xml.contains("scope dev_TestCase"), xml);
+		assertTrue(xml.contains("scope user_TestCase"), xml);
 	}
 
 	@Test
