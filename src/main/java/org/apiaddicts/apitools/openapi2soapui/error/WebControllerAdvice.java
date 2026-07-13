@@ -123,6 +123,8 @@ public class WebControllerAdvice {
 			errors = getMismatchedInputErrors(Constants.AUTHENTICATION_PROFILES_KEY, targetType);
 		} else if (pathReference.contains(Constants.HEADERS_KEY)) {
 			errors = getMismatchedInputErrors(Constants.HEADERS_KEY, targetType);
+		} else if (pathReference.contains(Constants.CUSTOM_AUTHORIZATIONS_KEY)) {
+			errors = getMismatchedInputErrors(Constants.CUSTOM_AUTHORIZATIONS_KEY, targetType);
 		} else {
 			errors = getDefaultBadRequestErrors();
 		}
@@ -136,7 +138,7 @@ public class WebControllerAdvice {
 	 * @return custom error response
 	 */
 	private List<ObjectError> getMismatchedInputErrors(String field, String targetType) {
-		if (targetType.contains("String") || targetType.contains("AuthenticationProfile") || targetType.contains("Header")) {
+		if (targetType.contains("String") || targetType.contains("AuthenticationProfile") || targetType.contains("Header") || targetType.contains("CustomAuthorizationRequest")) {
 			return Collections.singletonList(new ObjectError(BAD_REQUEST, resourceBundle.getString("validation.serialization."+ field +".item")));
 		} else if (targetType.contains("HashSet") || targetType.contains("ArrayList")) {
 			return Collections.singletonList(new ObjectError(BAD_REQUEST, resourceBundle.getString("validation.serialization."+ field +".list")));
