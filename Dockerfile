@@ -1,4 +1,4 @@
-FROM openjdk:11-jdk
+FROM openjdk:17-jdk
 
 ARG JAR_FILE
 COPY ${JAR_FILE} app.jar

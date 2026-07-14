@@ -267,10 +267,20 @@ public class SoapUIProject {
 				parameter.setStyle(ParameterStyle.HEADER);
 			} else if (openAPIParameter.getIn().equalsIgnoreCase(PATH)) {
 				parameter.setStyle(ParameterStyle.TEMPLATE);
-			} else if (openAPIParameter.getIn().equalsIgnoreCase(QUERY)) {
+			} else if (openAPIParameter.getIn().equalsIgnoreCase(QUERY) || openAPIParameter.getIn().equalsIgnoreCase("querystring")) {
 				parameter.setStyle(ParameterStyle.QUERY);
 			}
 		}
+	}
+
+	/**
+	 * Determine if an HTTP method should be skipped when readOnly option is enabled.
+	 * @param httpMethod OpenAPI HTTP method
+	 * @return true when method is considered write operation
+	 */
+	private boolean isWriteOperation(HttpMethod httpMethod) {
+		String method = httpMethod.name();
+		return method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE");
 	}
 
 	/**
@@ -358,27 +368,43 @@ public class SoapUIProject {
 	 * @param operations list of path operations
 	 */
 	private void setResourceMethods(RestResource restResource, Map<HttpMethod, Operation> operations) {
-		if (operations != null && !operations.isEmpty()) {
-			operations.forEach((httpMethod, operation) -> {
-				// Feature 1: readOnly
-				if (options.isReadOnly()) {
-					String method = httpMethod.name();
-					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
-						return;
-					}
-				}
-
-				RestMethod restMethod = restResource.addNewMethod((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
-				restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
-				restMethod.setDescription((operation.getDescription() != null) ? operation.getDescription() : "");
-
-				if (operation.getRequestBody() != null) {
-					setMethodRequestRepresentations(restMethod, operation.getRequestBody());
-				}
-
-				setMethodResponseRepresentations(restMethod, operation.getResponses());
-			});
+		if (operations == null || operations.isEmpty()) {
+			return;
 		}
+		operations.forEach((httpMethod, operation) -> setResourceMethod(restResource, httpMethod, operation));
+	}
+
+	/**
+	 * Set Resource Method
+	 * Add a single Method to Resource from an OpenAPI Operation
+	 * Skip write operations if readOnly mode is enabled
+	 * Skip method if the HTTP method is not supported by current SoapUI version
+	 * @param restResource instance of Resource
+	 * @param httpMethod OpenAPI HTTP method
+	 * @param operation OpenAPI Operation
+	 */
+	private void setResourceMethod(RestResource restResource, HttpMethod httpMethod, Operation operation) {
+		// Feature 1: readOnly
+		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+			return;
+		}
+
+		String methodName = (operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name();
+		RestMethod restMethod = restResource.addNewMethod(methodName);
+		try {
+			restMethod.setMethod(RestRequestInterface.HttpMethod.valueOf(httpMethod.name()));
+		} catch (IllegalArgumentException ex) {
+			log.warn("HTTP method {} is not supported by current SoapUI version and will be skipped", httpMethod.name());
+			return;
+		}
+		String description = (operation.getDescription() != null) ? operation.getDescription() : "";
+		restMethod.setDescription(description);
+
+		if (operation.getRequestBody() != null) {
+			setMethodRequestRepresentations(restMethod, operation.getRequestBody());
+		}
+
+		setMethodResponseRepresentations(restMethod, operation.getResponses());
 	}
 
 	/**
@@ -434,41 +460,65 @@ public class SoapUIProject {
 	 */
 	private void setMethodsRequests(String pathName, PathItem pathItem) {
 		RestResource restResource = restService.getResourceByFullPath(restService.getBasePath() + pathName);
+		if (restResource == null) {
+			return;
+		}
+		pathItem.readOperationsMap().forEach((httpMethod, operation) ->
+			setMethodRequest(restResource, pathItem, httpMethod, operation));
+	}
 
-		if (restResource != null) {
-			pathItem.readOperationsMap().forEach((httpMethod, operation) -> {
-				// Feature 1: readOnly
-				if (options.isReadOnly()) {
-					String method = httpMethod.name();
-					if (method.equals("POST") || method.equals("PUT") || method.equals("PATCH") || method.equals("DELETE")) {
-						return;
-					}
-				}
+	/**
+	 * Set Method Request
+	 * Find the Method matching the Operation and create/configure its Request
+	 * Skip write operations if readOnly mode is enabled
+	 * @param restResource instance of Resource
+	 * @param pathItem instance of OpenAPI Path
+	 * @param httpMethod OpenAPI HTTP method
+	 * @param operation OpenAPI Operation
+	 */
+	private void setMethodRequest(RestResource restResource, PathItem pathItem, HttpMethod httpMethod, Operation operation) {
+		// Feature 1: readOnly
+		if (options.isReadOnly() && isWriteOperation(httpMethod)) {
+			return;
+		}
 
-				RestMethod restMethod = restResource.getRestMethodByName((operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name());
-				if (restMethod == null) return;
-				RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
-				RestRequestConfig restRequestConfig = restRequest.getConfig();
+		String methodName = (operation.getOperationId() != null) ? operation.getOperationId() : httpMethod.name();
+		RestMethod restMethod = restResource.getRestMethodByName(methodName);
+		if (restMethod == null) {
+			return;
+		}
 
-				restRequestConfig.setOriginalUri(restService.getEndpoints()[0] + restResource.getFullPath(true));
-				setRequestAuthProfile(restRequestConfig);
-				setRequestJMSConfig(restRequestConfig);
+		RestRequest restRequest = restMethod.addNewRequest(DEFAULT_REQUEST_NAME);
+		RestRequestConfig restRequestConfig = restRequest.getConfig();
 
-				restRequest.setEndpoint(restService.getEndpoints()[0]);
-				setRequestMediaType(restRequest, operation);
+		restRequestConfig.setOriginalUri(restService.getEndpoints()[0] + restResource.getFullPath(true));
+		setRequestAuthProfile(restRequestConfig);
+		setRequestJMSConfig(restRequestConfig);
 
-				setResourceParameters(restResource, pathItem.getParameters());
-				setMethodParameters(restMethod, operation.getParameters());
+		restRequest.setEndpoint(restService.getEndpoints()[0]);
+		setRequestMediaType(restRequest, operation);
 
-				if (operation.getRequestBody() != null) {
-					Content content = operation.getRequestBody().getContent();
-					if (content != null && !content.isEmpty()) {
-						setRequestContent(restRequest, content);
-					}
-				}
+		setResourceParameters(restResource, pathItem.getParameters());
+		setMethodParameters(restMethod, operation.getParameters());
 
-				setRequestHeaders(restRequest, operation);
-			});
+		setRequestBodyContent(restRequest, operation);
+
+		setRequestHeaders(restRequest, operation);
+	}
+
+	/**
+	 * Set Request Body Content
+	 * Extract the Operation Request Body content and set it on the Request when present
+	 * @param restRequest instance of Method Request
+	 * @param operation OpenAPI Operation
+	 */
+	private void setRequestBodyContent(RestRequest restRequest, Operation operation) {
+		if (operation.getRequestBody() == null) {
+			return;
+		}
+		Content content = operation.getRequestBody().getContent();
+		if (content != null && !content.isEmpty()) {
+			setRequestContent(restRequest, content);
 		}
 	}
 

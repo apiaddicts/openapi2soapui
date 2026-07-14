@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 
 import io.swagger.v3.oas.models.OpenAPI;
 import org.apiaddicts.apitools.openapi2soapui.request.SoapUIProjectOptions;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import com.eviware.soapui.support.SoapUIException;
 
 import java.io.IOException;
@@ -405,43 +406,80 @@ class OpenAPIVersionSupportTest {
 	}
 
 	@Nested
-	@DisplayName("OpenAPI 3.2 Forward Compatibility")
+	@DisplayName("OpenAPI 3.2.x Support")
 	class OpenAPI32Support {
 
 		@Test
-		@DisplayName("Note: OpenAPI 3.2 is not officially released yet")
-		void testOpenAPI32Status() {
-			String message = "OpenAPI 3.2 support: Not yet released as of 2026-04-27. " +
-				"When released, swagger-parser will need to be updated to support it. " +
-				"Current version (2.0.24) supports OpenAPI 3.0.x and 3.1.x.";
-			assertTrue(message.contains("3.2"), "Documentation note for 3.2 support");
-		}
+		@DisplayName("Should parse OpenAPI 3.2.0 spec")
+		void testParseOpenAPI320() throws IOException, XmlException, SoapUIException {
+			String spec = """
+				openapi: 3.2.0
+				info:
+				  title: OpenAPI 32 API
+				  version: 1.0.0
+				servers:
+				  - url: http://api.example.com/v1
+				paths:
+				  /status:
+				    get:
+				      operationId: getStatus
+				      responses:
+				        '200':
+				          description: OK
+				          content:
+				            application/json:
+				              schema:
+				                type: object
+				""";
 
-		@Test
-		@DisplayName("Should gracefully handle future OpenAPI versions")
-		void testFutureVersionHandling() throws IOException, XmlException, SoapUIException {
-			String spec = "openapi: 3.1.0\n" +
-				"info:\n" +
-				"  title: Test API\n" +
-				"  version: 1.0.0\n" +
-				"servers:\n" +
-				"  - url: http://api.example.com\n" +
-				"paths:\n" +
-				"  /test:\n" +
-				"    get:\n" +
-				"      operationId: test\n" +
-				"      responses:\n" +
-				"        '200':\n" +
-				"          description: OK\n";
+			OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(spec);
+			assertNotNull(openAPI, "OpenAPI 3.2.0 spec should parse successfully");
+			assertEquals("3.1.0", openAPI.getOpenapi(), "3.2 spec should be normalized to parser-compatible version");
 
-			OpenAPI openAPI = parser.readContents(spec).getOpenAPI();
-			assertNotNull(openAPI, "Parser should handle current versions");
-
-			SoapUIProject project = new SoapUIProject("TestAPI", openAPI, null, null, null, null);
+			SoapUIProject project = new SoapUIProject("OpenAPI32API", openAPI, null, null, null, null);
 			String xml = project.getFileContent();
 			project.deleteTemporaryFile();
 
-			assertTrue(xml.length() > 0, "Should generate valid XML");
+			assertTrue(xml.contains("getStatus"), "Generated XML should contain operation");
+			assertFalse(xml.isEmpty(), "Should generate valid XML");
+		}
+
+		@Test
+		@DisplayName("Should handle OpenAPI 3.2 querystring parameter")
+		void testOpenAPI32QuerystringParameterSupport() throws IOException, XmlException, SoapUIException {
+			String spec = """
+				openapi: 3.2.0
+				info:
+				  title: Querystring API
+				  version: 1.0.0
+				servers:
+				  - url: http://api.example.com
+				paths:
+				  /test:
+				    get:
+				      operationId: testQuerystring
+				      parameters:
+				        - name: rawQuery
+				          in: querystring
+				          required: false
+				          content:
+				            application/x-www-form-urlencoded:
+				              schema:
+				                type: string
+				      responses:
+				        '200':
+				          description: OK
+				""";
+
+			OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(spec);
+			assertNotNull(openAPI, "OpenAPI 3.2 with querystring parameter should parse successfully");
+
+			SoapUIProject project = new SoapUIProject("QuerystringAPI", openAPI, null, null, null, null);
+			String xml = project.getFileContent();
+			project.deleteTemporaryFile();
+
+			assertTrue(xml.contains("testQuerystring"), "Generated XML should contain operation");
+			assertFalse(xml.isEmpty(), "Should generate valid XML");
 		}
 	}
 
