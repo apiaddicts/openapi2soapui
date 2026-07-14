@@ -46,4 +46,12 @@ public class Constants {
 
 	public static final String SELECT_QUERY_PARAM = "$select";
 	public static final String EXCLUDE_QUERY_PARAM = "$exclude";
+
+	// serviceApiConvention (RSI "APIs de servicios" naming convention, notes.txt §2.2.3)
+	public static final String SERVICE_API_SUITE_SUFFIX = "Suite";
+	public static final String SERVICE_API_CASE_OK_ALL_PROPERTIES = "OkAllProperties";
+	public static final String SERVICE_API_CASE_OK_REQUIRED_PROPERTIES = "OkRequiredProperties";
+	public static final String SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX = "ErrorStatusCode";
+	public static final String SERVICE_API_CASE_ERROR_REQUIRED_PREFIX = "ErrorRequired";
+	public static final String SERVICE_API_ARRAY_ITEM_SEGMENT = "item";
 }

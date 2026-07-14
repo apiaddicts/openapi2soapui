@@ -83,6 +83,8 @@ paths:
 
         Additionally, when the **hasScopes** flag is set to true, the **numberOfScopes** value sets the total number of test cases wired to a profile-based scope credential — counting the default test case and any extra scope-variant test cases — using the first numberOfScopes configured oAuth2Profiles entries in configured order. Values below 1 (unset, 0, or negative) are treated as 1: no extra test case is generated, since the default test case alone already covers the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Has no effect when hasScopes is false, or when oAuth2Profiles is empty or not provided. Does not affect applicationToken test cases.
 
+        Additionally, when the **serviceApiConvention** flag is set to true, Test Suite/Test Case generation switches to the RSI "APIs de servicios" naming convention for every Method: Test Suite `{resourcePath}_{apiName}_{apiVersion}-{METHOD}-Suite` (run type SEQUENTIAL, abortOnError false), and exactly 4 Test Cases — `{METHOD}_CaseOkAllProperties` (a successful call with every body property and query parameter, required and optional), `{METHOD}_CaseOkRequiredProperties` (a successful call with only required body properties and query parameters), one `{METHOD}_CaseErrorStatusCode{StatusCode}` per distinct non-2xx status code documented in the operation's responses, and one `{METHOD}_CaseErrorRequired{Field}` per required body property and required query parameter. Every generated Test Case carries its own status-code assertion and (when the corresponding response documents a JSON schema) a response-schema assertion, regardless of the validateSchema flag. When true, the testCaseNames property and the minimalEndpoints missing/wrong body-property variants are not used for that Method; hasScopes/applicationToken variants are unaffected. When false (default), behavior is entirely unchanged.
+
         The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
@@ -106,6 +108,7 @@ paths:
           - hasScopes: Boolean flag; when true, generates one additional test case per configured oAuth2Profiles entry beyond the first, each using that profile's own authentication
           - applicationToken: Boolean flag; only relevant when hasScopes is true. When also true, generates one additional test case per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (including the first), separate from the hasScopes test cases
           - numberOfScopes: Integer; only relevant when hasScopes is true. Total number of test cases wired to a profile-based scope credential, counting the default test case, using the first N configured oAuth2Profiles entries in configured order. Values below 1 (unset/0/negative) are treated as 1 (no extra test case)
+          - serviceApiConvention: Boolean flag; when true, switches to the RSI "APIs de servicios" Test Suite/Test Case naming convention and generates exactly 4 test cases per method (CaseOkAllProperties, CaseOkRequiredProperties, one CaseErrorStatusCode{StatusCode} per documented error response, one CaseErrorRequired{Field} per required body property/query parameter), each with its own status-code and (when available) response-schema assertions, ignoring testCaseNames and minimalEndpoints for that method
         content:
           aplication/json:
             schema:
@@ -544,6 +547,10 @@ components:
           type: integer
           description: Only relevant when hasScopes is true. Total number of test cases wired to a profile-based scope credential — counting the default test case and any extra scope-variant test cases — using the first numberOfScopes configured oAuth2Profiles entries in configured order. Values below 1 (unset, 0, or negative) are treated as 1 — no extra test case is generated, since the default test case alone already covers the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Does not affect applicationToken test cases.
           example: 1
+        serviceApiConvention:
+          type: boolean
+          description: If true, switches Test Suite/Test Case generation for every method to the RSI "APIs de servicios" naming convention — Test Suite {resourcePath}_{apiName}_{apiVersion}-{METHOD}-Suite (run type SEQUENTIAL, abortOnError false), and exactly 4 test cases per method — {METHOD}_CaseOkAllProperties, {METHOD}_CaseOkRequiredProperties, one {METHOD}_CaseErrorStatusCode{StatusCode} per documented non-2xx response, and one {METHOD}_CaseErrorRequired{Field} per required body property and required query parameter — each with its own status-code assertion and (when the corresponding response documents a JSON schema) a response-schema assertion, regardless of validateSchema. When true, testCaseNames and the minimalEndpoints missing/wrong body-property variants are not used for that method; hasScopes/applicationToken variants are unaffected. If false (default), behavior is unchanged.
+          example: false
         serverPattern:
           type: string
           description: Pattern to select the OpenAPI server used as endpoint. Wrap the substring with % (e.g. %dev%). If no server matches, or if serverPattern is omitted entirely, the first declared server is used.
