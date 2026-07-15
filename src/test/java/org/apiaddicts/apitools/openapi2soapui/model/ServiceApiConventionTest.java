@@ -113,46 +113,34 @@ class ServiceApiConventionTest {
 				.replace("&amp;", "&");
 	}
 
-	private SoapUIProject buildProject(OpenAPI openAPI, boolean serviceApiConvention) throws Exception {
+	private SoapUIProject buildProject(OpenAPI openAPI) throws Exception {
 		return new SoapUIProject(
-				"TestApi",           // apiName
-				openAPI,             // openAPI
-				null,                // oAuth2Profiles
-				null,                // headers
-				null,                // testCaseNames
-				false,               // readOnly
-				null,                // serverPattern
-				false,               // minimalEndpoints
-				false,               // microcksHeaders
-				false,               // generateOneOfAnyOf
-				false,               // validateSchema
-				false,               // schemaIsInline
-				false,               // isInline
-				true,                // schemaPrettyPrint
-				false,               // hasScopes
-				false,               // applicationToken
-				null,                // numberOfScopes
-				null,                // examples
-				null,                // customAuthorizationsFile
-				serviceApiConvention // serviceApiConvention
+				"TestApi",  // apiName
+				openAPI,    // openAPI
+				null,       // oAuth2Profiles
+				null,       // headers
+				null,       // testCaseNames
+				false,      // readOnly
+				null,       // serverPattern
+				false,      // minimalEndpoints
+				false,      // microcksHeaders
+				false,      // generateOneOfAnyOf
+				false,      // validateSchema
+				false,      // schemaIsInline
+				false,      // isInline
+				true,       // schemaPrettyPrint
+				false,      // hasScopes
+				false,      // applicationToken
+				null,       // numberOfScopes
+				null,       // examples
+				null        // customAuthorizationsFile
 		);
 	}
 
 	@Test
-	void serviceApiConventionFalse_leavesDefaultBehaviorUnchanged() throws Exception {
+	void generatesRsiSuiteAndCaseNames() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String xml = buildProject(openAPI, false).getFileContent();
-
-		assertTrue(xml.contains("_TestSuite"), xml);
-		assertTrue(xml.contains("Success_TestCase"), xml);
-		assertFalse(xml.contains("-Suite"), xml);
-		assertFalse(xml.contains("CaseOkAllProperties"), xml);
-	}
-
-	@Test
-	void serviceApiConventionTrue_generatesRsiSuiteAndCaseNames() throws Exception {
-		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String xml = buildProject(openAPI, true).getFileContent();
+		String xml = buildProject(openAPI).getFileContent();
 
 		assertTrue(xml.contains("/items_TestApi_1.0-POST-Suite"), xml);
 		assertTrue(xml.contains("POST_CaseOkAllProperties"), xml);
@@ -167,7 +155,7 @@ class ServiceApiConventionTest {
 	@Test
 	void okAllProperties_populatesAllQueryParamsAndFullBody() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String decoded = decode(buildProject(openAPI, true).getFileContent());
+		String decoded = decode(buildProject(openAPI).getFileContent());
 
 		int start = decoded.indexOf("name=\"OkAllProperties\"");
 		assertTrue(start >= 0, decoded);
@@ -185,7 +173,7 @@ class ServiceApiConventionTest {
 	@Test
 	void okRequiredProperties_omitsOptionalBodyAndQueryParams() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String decoded = decode(buildProject(openAPI, true).getFileContent());
+		String decoded = decode(buildProject(openAPI).getFileContent());
 
 		int start = decoded.indexOf("name=\"OkRequiredProperties\"");
 		assertTrue(start >= 0, decoded);
@@ -203,7 +191,7 @@ class ServiceApiConventionTest {
 	@Test
 	void errorStatusCode_generatesOnePerDocumentedNonSuccessCodeWithOwnAssertions() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String xml = buildProject(openAPI, true).getFileContent();
+		String xml = buildProject(openAPI).getFileContent();
 
 		assertEquals(1, countOccurrences(xml, "POST_CaseErrorStatusCode400"), xml);
 		assertEquals(1, countOccurrences(xml, "POST_CaseErrorStatusCode404"), xml);
@@ -217,7 +205,7 @@ class ServiceApiConventionTest {
 	@Test
 	void errorRequiredField_coversBodyAndQueryRequiredFieldsOnly() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_REQUIRED_AND_OPTIONAL);
-		String xml = buildProject(openAPI, true).getFileContent();
+		String xml = buildProject(openAPI).getFileContent();
 
 		assertTrue(xml.contains("POST_CaseErrorRequiredName"), xml);
 		assertTrue(xml.contains("POST_CaseErrorRequiredAddress"), xml);
@@ -231,7 +219,7 @@ class ServiceApiConventionTest {
 	@Test
 	void noOperationRequirements_stillGeneratesTheTwoOkCasesOnly() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_NO_ERRORS_NO_REQUIRED);
-		String xml = buildProject(openAPI, true).getFileContent();
+		String xml = buildProject(openAPI).getFileContent();
 
 		assertTrue(xml.contains("GET_CaseOkAllProperties"), xml);
 		assertTrue(xml.contains("GET_CaseOkRequiredProperties"), xml);

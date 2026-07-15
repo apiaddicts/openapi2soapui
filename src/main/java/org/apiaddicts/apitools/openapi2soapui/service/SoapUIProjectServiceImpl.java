@@ -19,8 +19,7 @@ public class SoapUIProjectServiceImpl implements SoapUIProjectService {
 				request.getTestCaseNames(), request.getReadOnly(), request.getServerPattern(), request.getMinimalEndpoints(),
 				request.getMicrocksHeaders(), request.getGenerateOneOfAnyOf(), request.getValidateSchema(),
 				request.getSchemaIsInline(), request.getIsInline(), request.getSchemaPrettyPrint(), request.getHasScopes(),
-				request.getApplicationToken(), request.getNumberOfScopes(), request.getExamples(), request.getCustomAuthorizationsFile(),
-				request.getServiceApiConvention());
+				request.getApplicationToken(), request.getNumberOfScopes(), request.getExamples(), request.getCustomAuthorizationsFile());
 	}
 
 }

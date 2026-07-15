@@ -92,10 +92,10 @@ class SoapUIProjectControllerApplicationTokenTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("application_token dev_TestCase")))
-				.andExpect(content().string(not(containsString("application_token user_TestCase"))))
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(containsString("scope user_TestCase")));
+				.andExpect(content().string(containsString("GET_CaseOkApplicationTokenDev")))
+				.andExpect(content().string(not(containsString("GET_CaseOkApplicationTokenUser"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(containsString("GET_CaseOkScopeUser")));
 	}
 
 	@Test
@@ -123,6 +123,6 @@ class SoapUIProjectControllerApplicationTokenTest {
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
 				.andExpect(content().string(not(containsString("application_token "))))
-				.andExpect(content().string(containsString("scope user_TestCase")));
+				.andExpect(content().string(containsString("GET_CaseOkScopeUser")));
 	}
 }

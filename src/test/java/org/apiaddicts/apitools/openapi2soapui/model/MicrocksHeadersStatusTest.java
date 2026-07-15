@@ -95,41 +95,44 @@ class MicrocksHeadersStatusTest {
 				.replace("&amp;", "&");
 	}
 
+	private String requestBlock(String decoded, String requestName) {
+		int start = decoded.indexOf("name=\"" + requestName + "\"");
+		assertTrue(start >= 0, "Request not found: " + requestName + "\n" + decoded);
+		int end = decoded.indexOf("<con:request name=\"", start + 1);
+		if (end < 0) end = decoded.indexOf("<con:testSuite", start);
+		assertTrue(end > start, decoded);
+		return decoded.substring(start, end);
+	}
+
 	@Test
-	void bodyPropertyVariants_useThe400ResponseExampleInsteadOfTheOperationsFirst2xx() throws Exception {
+	void errorRequiredField_usesThe400ResponseExampleInsteadOfTheOperationsFirst2xx() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_400_EXAMPLE);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, false, true, false, false, false, false, null);
 		String xml = decode(soapUIProject.getFileContent());
 
-		int defaultRequestStart = xml.indexOf("name=\"Request 1\"");
-		int missingIdRequestStart = xml.indexOf("name=\"missing id\"");
-		assertTrue(defaultRequestStart >= 0 && missingIdRequestStart >= 0, xml);
-
-		String defaultRequestBlock = xml.substring(defaultRequestStart, missingIdRequestStart);
+		String defaultRequestBlock = requestBlock(xml, "Request 1");
 		assertTrue(defaultRequestBlock.contains("X-Microcks-Response-Name") && defaultRequestBlock.contains("successExample"),
 				"The default (success-path) request should use the first 2xx response's named example: " + defaultRequestBlock);
 		assertFalse(defaultRequestBlock.contains("badExample"), defaultRequestBlock);
 
-		String missingIdBlock = xml.substring(missingIdRequestStart, xml.indexOf("</con:request>", missingIdRequestStart));
-		assertTrue(missingIdBlock.contains("badExample"),
-				"The 400-targeting body-property variant should use the 400 response's own named example, not the operation's first 2xx: " + missingIdBlock);
-		assertFalse(missingIdBlock.contains("successExample"), missingIdBlock);
+		String errorRequiredIdBlock = requestBlock(xml, "ErrorRequiredid");
+		assertTrue(errorRequiredIdBlock.contains("badExample"),
+				"The 400-targeting CaseErrorRequired{Field} variant should use the 400 response's own named example, not the operation's first 2xx: " + errorRequiredIdBlock);
+		assertFalse(errorRequiredIdBlock.contains("successExample"), errorRequiredIdBlock);
 	}
 
 	@Test
-	void bodyPropertyVariants_fallBackToLiteralDefaultWhenNo400ResponseIsDeclared() throws Exception {
+	void errorRequiredField_fallsBackToLiteralDefaultWhenNo400ResponseIsDeclared() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITHOUT_400_EXAMPLE);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, false, true, false, false, false, false, null);
 		String xml = decode(soapUIProject.getFileContent());
 
-		int missingIdRequestStart = xml.indexOf("name=\"missing id\"");
-		assertTrue(missingIdRequestStart >= 0, xml);
-		String missingIdBlock = xml.substring(missingIdRequestStart, xml.indexOf("</con:request>", missingIdRequestStart));
-		assertTrue(missingIdBlock.contains("value=\"default\""),
-				"With no 400 (or default) response declared, the header should fall back to the literal string 'default': " + missingIdBlock);
+		String errorRequiredIdBlock = requestBlock(xml, "ErrorRequiredid");
+		assertTrue(errorRequiredIdBlock.contains("value=\"default\""),
+				"With no 400 (or default) response declared, the header should fall back to the literal string 'default': " + errorRequiredIdBlock);
 	}
 }

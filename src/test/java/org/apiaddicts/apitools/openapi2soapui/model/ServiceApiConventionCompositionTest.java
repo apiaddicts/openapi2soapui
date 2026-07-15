@@ -1,5 +1,6 @@
 package org.apiaddicts.apitools.openapi2soapui.model;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -101,6 +102,33 @@ class ServiceApiConventionCompositionTest {
 			"                    type: string"
 	);
 
+	private static final String SPEC_WITH_TWO_REQUIRED_BODY_FIELDS = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /items:",
+			"    post:",
+			"      operationId: createItem",
+			"      requestBody:",
+			"        content:",
+			"          application/json:",
+			"            schema:",
+			"              type: object",
+			"              required: [name, age]",
+			"              properties:",
+			"                name:",
+			"                  type: string",
+			"                age:",
+			"                  type: integer",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"        '400':",
+			"          description: Bad Request"
+	);
+
 	private OpenAPI parseSpec(String yaml) {
 		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
 		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
@@ -111,6 +139,16 @@ class ServiceApiConventionCompositionTest {
 		return xml.replace("&lt;", "<").replace("&gt;", ">")
 				.replace("&quot;", "\"").replace("&apos;", "'")
 				.replace("&amp;", "&");
+	}
+
+	private int countOccurrences(String haystack, String needle) {
+		int count = 0;
+		int index = 0;
+		while ((index = haystack.indexOf(needle, index)) != -1) {
+			count++;
+			index += needle.length();
+		}
+		return count;
 	}
 
 	private String requestBlock(String decoded, String requestName) {
@@ -135,24 +173,25 @@ class ServiceApiConventionCompositionTest {
 	}
 
 	@Test
-	void hasScopesAndApplicationToken_stillGenerateVariants_butKeepTheOldCaseNamingInsideTheNewSuite() throws Exception {
+	void hasScopesAndApplicationToken_generateVariantsWithTheNewCaseNaming() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
 		List<OAuth2Profile> profiles = Arrays.asList(clientCredentialsProfile("dev"), clientCredentialsProfile("admin"));
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, profiles, null, null,
-				false, null, false, false, false, false, false, false, true, true, true, 2, null, null, true);
+				false, null, false, false, false, false, false, false, true, true, true, 2, null, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("/items_TestApi_1.0-GET-Suite"), "New Suite naming must still apply: " + xml);
+		assertTrue(xml.contains("/items_TestApi_1.0-GET-Suite"), xml);
 		assertTrue(xml.contains("GET_CaseOkAllProperties"), xml);
 		assertTrue(xml.contains("GET_CaseOkRequiredProperties"), xml);
-		assertTrue(xml.contains("scope admin_TestCase"), "hasScopes variants are unaffected and keep the OLD _TestCase suffix, mixed into the same, newly-named Suite: " + xml);
-		assertTrue(xml.contains("application_token dev_TestCase") || xml.contains("application_token admin_TestCase"),
-				"applicationToken variants also keep the OLD naming: " + xml);
+		assertTrue(xml.contains("GET_CaseOkScopeAdmin"), "hasScopes variant must use the new naming: " + xml);
+		assertTrue(xml.contains("GET_CaseOkApplicationTokenDev") || xml.contains("GET_CaseOkApplicationTokenAdmin"),
+				"applicationToken variant must use the new naming: " + xml);
+		assertFalse(xml.contains("_TestCase"), xml);
 	}
 
 	@Test
-	void customAuthorizationsFile_authorizationsSuiteIsUnaffectedAndKeepsOldNaming() throws Exception {
+	void customAuthorizationsFile_authorizationsSuiteUsesTheNewNaming() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
 		CustomAuthorizationRequest customRequest = new CustomAuthorizationRequest();
 		customRequest.setName("login");
@@ -161,12 +200,13 @@ class ServiceApiConventionCompositionTest {
 		List<CustomAuthorizationRequest> customAuthorizationsFile = Arrays.asList(customRequest);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, false, false, false, false, false, false, false, false, false, null, null, customAuthorizationsFile, true);
+				false, null, false, false, false, false, false, false, false, false, false, null, null, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("authorizations_TestSuite"), "The authorizations Test Suite is built before setTestCases() runs and is untouched by serviceApiConvention: " + xml);
-		assertTrue(xml.contains("login_TestCase"), xml);
-		assertTrue(xml.contains("/items_TestApi_1.0-GET-Suite"), "The per-endpoint suite still gets the new naming: " + xml);
+		assertTrue(xml.contains("authorizations_TestApi_1.0-Suite"), xml);
+		assertTrue(xml.contains("POST_CaseLogin"), xml);
+		assertTrue(xml.contains("/items_TestApi_1.0-GET-Suite"), "The per-endpoint suite still gets its own naming: " + xml);
+		assertFalse(xml.contains("_TestSuite") || xml.contains("_TestCase"), xml);
 	}
 
 	@Test
@@ -174,7 +214,7 @@ class ServiceApiConventionCompositionTest {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_MICROCKS_EXAMPLES);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, false, true, false, false, false, false, false, false, false, null, null, null, true);
+				false, null, false, true, false, false, false, false, false, false, false, null, null, null);
 		String xml = decode(soapUIProject.getFileContent());
 
 		String okAllProperties = requestBlock(xml, "OkAllProperties");
@@ -187,15 +227,27 @@ class ServiceApiConventionCompositionTest {
 	}
 
 	@Test
-	void validateSchemaFalse_schemaAssertionIsStillAddedUnderTheNewConvention() throws Exception {
+	void validateSchemaOmitted_defaultsToTrueAndAddsSchemaAssertion() throws Exception {
 		OpenAPI openAPI = parseSpec(SPEC_WITH_SCHEMA);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, false, false, false, false, false, false, false, false, false, null, null, null, true);
+				false, null, false, false, false, null, false, false, false, false, false, null, null, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Script Assertion"), "serviceApiConvention's schema assertion must be added even when validateSchema is false/unset: " + xml);
+		assertTrue(xml.contains("Script Assertion"), "The schema assertion must be added when validateSchema is omitted (defaults to true): " + xml);
 		assertTrue(xml.contains("<codes>200</codes>"), xml);
+	}
+
+	@Test
+	void validateSchemaFalse_omitsSchemaAssertionButKeepsStatusCodeAssertion() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_SCHEMA);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
+		String xml = soapUIProject.getFileContent();
+
+		assertFalse(xml.contains("Script Assertion"), "validateSchema=false must omit the schema assertion: " + xml);
+		assertTrue(xml.contains("<codes>200</codes>"), "The status-code assertion must remain regardless of validateSchema: " + xml);
 	}
 
 	@Test
@@ -231,31 +283,45 @@ class ServiceApiConventionCompositionTest {
 		OpenAPI openAPI = parseSpec(specWithQueryParam);
 
 		SoapUIProject inlineTrue = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, false, false, false, false, false, true, false, false, false, null, null, null, true);
+				false, null, false, false, false, false, false, true, false, false, false, null, null, null);
 		String xmlInline = inlineTrue.getFileContent();
 		assertTrue(xmlInline.contains("\"name\": \"\""), "isInline=true must embed the literal body value (empty string is the default example for an unformatted string property): " + xmlInline);
 		assertFalse(xmlInline.contains("${#Project#"), xmlInline);
 		assertTrue(xmlInline.contains("key=\"category\" value=\"string\""), "Query param values are always written literally into the request config, regardless of isInline: " + xmlInline);
 
 		SoapUIProject inlineFalse = new SoapUIProject("TestApi", openAPI, null, null, null,
-				false, null, false, false, false, false, false, false, false, false, false, null, null, null, true);
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
 		String xmlNotInline = inlineFalse.getFileContent();
 		assertTrue(xmlNotInline.contains("${#Project#"), "isInline=false must tokenize the body value as a Project Property: " + xmlNotInline);
 		assertTrue(xmlNotInline.contains("key=\"category\" value=\"string\""), "Query param values remain literal even when isInline=false, same as before: " + xmlNotInline);
 	}
 
 	@Test
-	void testCaseNamesAndMinimalEndpoints_areSilentlyIgnoredWithoutErrorUnderTheNewConvention() throws Exception {
+	void testCaseNames_generatesExtraNamedCopyOfOkAllProperties() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_SPEC);
 		Set<String> testCaseNames = Set.of("Custom");
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, testCaseNames,
-				false, null, false, false, false, false, false, false, false, false, false, null, null, null, true);
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("Custom_TestCase"), "testCaseNames must have no effect under serviceApiConvention: " + xml);
-		assertFalse(xml.contains("missing "), "minimalEndpoints' variant generation must not run under serviceApiConvention: " + xml);
-		assertFalse(xml.contains("wrong "), xml);
+		assertTrue(xml.contains("GET_CaseCustom"), "testCaseNames must generate an extra named copy of CaseOkAllProperties: " + xml);
 		assertTrue(xml.contains("GET_CaseOkAllProperties"), xml);
+		assertTrue(xml.contains("GET_CaseOkRequiredProperties"), xml);
+	}
+
+	@Test
+	void minimalEndpoints_capsErrorRequiredFieldToOne() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_TWO_REQUIRED_BODY_FIELDS);
+
+		SoapUIProject minimalTrue = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, false, false, false, false, false, false, null, null, null);
+		String xmlMinimal = minimalTrue.getFileContent();
+		assertEquals(1, countOccurrences(xmlMinimal, "POST_CaseErrorRequired"), "minimalEndpoints=true must collapse to at most one CaseErrorRequired{Field}: " + xmlMinimal);
+
+		SoapUIProject minimalFalse = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
+		String xmlNotMinimal = minimalFalse.getFileContent();
+		assertEquals(2, countOccurrences(xmlNotMinimal, "POST_CaseErrorRequired"), "minimalEndpoints=false (default) must generate one CaseErrorRequired{Field} per required property: " + xmlNotMinimal);
 	}
 }

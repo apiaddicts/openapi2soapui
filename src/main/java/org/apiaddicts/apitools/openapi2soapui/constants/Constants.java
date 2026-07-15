@@ -9,11 +9,7 @@ public class Constants {
 	public static final String SOAP_UI_PROJECT_FILE_NAME = "soapui-project";
 	public static final String SOAP_UI_PROJECT_FILE_EXTENSION = ".xml";
 	
-	public static final String SUITE_SUFFIX = "TestSuite";
-	public static final String CASE_SUFFIX = "TestCase";
 	public static final String STEP_SUFFIX = "TestStep";
-
-	public static final String SUCCESS_TEST_CASE = "Success";
 
 	public static final String AUTHORIZATIONS_TEST_SUITE_NAME = "authorizations";
 	
@@ -37,8 +33,6 @@ public class Constants {
 	public static final String VALID_HTTP_STATUS_CODES_ASSERTION = "Valid HTTP Status Codes";
 	public static final String WRONG_STATUS_CODE = "400";
 	public static final String SCRIPT_ASSERTION = "Script Assertion";
-	public static final String MISSING_BODY_PROPERTY_VARIANT_PREFIX = "missing ";
-	public static final String WRONG_BODY_PROPERTY_VARIANT_PREFIX = "wrong ";
 	public static final String HAS_SCOPES_VARIANT_PREFIX = "scope ";
 	public static final String APPLICATION_TOKEN_VARIANT_PREFIX = "application_token ";
 
@@ -47,11 +41,13 @@ public class Constants {
 	public static final String SELECT_QUERY_PARAM = "$select";
 	public static final String EXCLUDE_QUERY_PARAM = "$exclude";
 
-	// serviceApiConvention (RSI "APIs de servicios" naming convention, notes.txt §2.2.3)
+	// Test Suite/Test Case naming convention
 	public static final String SERVICE_API_SUITE_SUFFIX = "Suite";
 	public static final String SERVICE_API_CASE_OK_ALL_PROPERTIES = "OkAllProperties";
 	public static final String SERVICE_API_CASE_OK_REQUIRED_PROPERTIES = "OkRequiredProperties";
 	public static final String SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX = "ErrorStatusCode";
 	public static final String SERVICE_API_CASE_ERROR_REQUIRED_PREFIX = "ErrorRequired";
+	public static final String SERVICE_API_CASE_OK_SCOPE_PREFIX = "OkScope";
+	public static final String SERVICE_API_CASE_OK_APPLICATION_TOKEN_PREFIX = "OkApplicationToken";
 	public static final String SERVICE_API_ARRAY_ITEM_SEGMENT = "item";
 }

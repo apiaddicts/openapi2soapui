@@ -57,9 +57,8 @@ Nomenclature used:
 - Resource: {path}
 - Method: {httpMethodInUppercase}
 - Request: {defaultRequestName}
-- Test Suite: {path}\_{httpMethodInUppercase}\_TestSuite
-- Test Case (Default): Success\_TestCase
-- Test Case: {testCaseName}\_TestCase
+- Test Suite: {path}\_{apiName}\_{apiVersion}-{httpMethodInUppercase}-Suite (run type SEQUENTIAL, abortOnError false)
+- Test Case: {httpMethodInUppercase}\_Case{CaseDescription}
 - Test Step: Execution\_{httpMethodInUppercase}\_TestStep
 
 The variables are obtained from:
@@ -67,7 +66,6 @@ The variables are obtained from:
 - apiVersion: version defined in the 'info' section of the OpenAPI Spec
 - path: each path defined in the OpenAPI Spec
 - httpMethodInUppercase: each HTTP methods of paths defined in OpenAPI Spec
-- testCaseName: each test case name defined in the property testCaseNames of request body
 
 ## Technology stack
 ### Overview

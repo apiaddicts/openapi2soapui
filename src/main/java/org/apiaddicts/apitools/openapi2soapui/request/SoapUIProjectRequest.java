@@ -78,9 +78,6 @@ public class SoapUIProjectRequest {
 	@JsonProperty("numberOfScopes")
 	private Integer numberOfScopes;
 
-	@JsonProperty("serviceApiConvention")
-	private Boolean serviceApiConvention;
-
 	@Valid
 	@JsonProperty("examples")
 	private ExamplesConfig examples;
