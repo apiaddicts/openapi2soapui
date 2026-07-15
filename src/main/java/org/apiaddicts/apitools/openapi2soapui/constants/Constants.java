@@ -50,4 +50,6 @@ public class Constants {
 	public static final String SERVICE_API_CASE_OK_SCOPE_PREFIX = "OkScope";
 	public static final String SERVICE_API_CASE_OK_APPLICATION_TOKEN_PREFIX = "OkApplicationToken";
 	public static final String SERVICE_API_ARRAY_ITEM_SEGMENT = "item";
+	public static final String SERVICE_API_CASE_INFIX = "_Case";
+	public static final String ARRAY_ITEM_PATH_SUFFIX = "_" + SERVICE_API_ARRAY_ITEM_SEGMENT;
 }

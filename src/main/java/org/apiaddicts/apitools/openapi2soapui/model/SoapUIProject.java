@@ -27,6 +27,8 @@ import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SERVICE
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SERVICE_API_CASE_OK_SCOPE_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SERVICE_API_CASE_OK_APPLICATION_TOKEN_PREFIX;
 import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SERVICE_API_ARRAY_ITEM_SEGMENT;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.SERVICE_API_CASE_INFIX;
+import static org.apiaddicts.apitools.openapi2soapui.constants.Constants.ARRAY_ITEM_PATH_SUFFIX;
 
 import java.io.File;
 import java.io.IOException;
@@ -831,7 +833,7 @@ public class SoapUIProject {
 		} else if (property instanceof ArraySchema) {
 			JSONArray jsonArray = new JSONArray();
 			Schema<?> items = refResolver.resolveSchema(((ArraySchema) property).getItems());
-			jsonArray.put(getPropertyExample(items, refResolver, path + "_item"));
+			jsonArray.put(getPropertyExample(items, refResolver, path + ARRAY_ITEM_PATH_SUFFIX));
 			return jsonArray;
 		} else if (property instanceof IntegerSchema || property instanceof NumberSchema) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO));
@@ -1155,7 +1157,7 @@ public class SoapUIProject {
 				restRequest.setRequestHeaders(requestHeaders);
 			}
 
-			WsdlTestCase testCase = testSuite.addNewTestCase(customRequest.getMethod().toUpperCase() + "_Case" + toCaseFieldName(customRequest.getName()));
+			WsdlTestCase testCase = testSuite.addNewTestCase(customRequest.getMethod().toUpperCase() + SERVICE_API_CASE_INFIX + toCaseFieldName(customRequest.getName()));
 			TestStepConfig stepConfig = RestRequestStepFactory.createConfig(restRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 			testCase.addTestStep(stepConfig);
 		}
@@ -1245,7 +1247,7 @@ public class SoapUIProject {
 			Operation operation, RefResolver refResolver, String method) {
 		for (String name : testCaseNames) {
 			RestRequest variantRequest = restMethod.cloneRequest(okAllPropertiesRequest, name);
-			WsdlTestCase testCase = testSuite.addNewTestCase(method + "_Case" + name);
+			WsdlTestCase testCase = testSuite.addNewTestCase(method + SERVICE_API_CASE_INFIX + name);
 			TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 			WsdlTestStep testStep = testCase.addTestStep(stepConfig);
 			addSuccessAssertions(testStep, operation, refResolver);
@@ -1266,7 +1268,7 @@ public class SoapUIProject {
 		RestRequest variantRequest = restMethod.cloneRequest(defaultRequest, SERVICE_API_CASE_OK_ALL_PROPERTIES);
 		applyQueryParameterValues(variantRequest, operation, refResolver, false);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_OK_ALL_PROPERTIES;
+		String testCaseName = method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_OK_ALL_PROPERTIES;
 		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
@@ -1300,7 +1302,7 @@ public class SoapUIProject {
 		}
 		applyQueryParameterValues(variantRequest, operation, refResolver, true);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_OK_REQUIRED_PROPERTIES;
+		String testCaseName = method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_OK_REQUIRED_PROPERTIES;
 		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
@@ -1331,29 +1333,39 @@ public class SoapUIProject {
 			Schema property = (Schema) resolvedSchema.getProperties().get(propertyName);
 			if (property == null) continue;
 			String childPath = path.isEmpty() ? propertyName : path + "_" + propertyName;
-			Schema refResolvedProperty = refResolver.resolveSchema(property);
-			Schema fullyResolvedProperty = resolveComposedSchema(refResolvedProperty, refResolver);
 			try {
-				Object example;
-				if (fullyResolvedProperty instanceof ObjectSchema) {
-					example = buildRequiredPropertiesExample(fullyResolvedProperty, refResolver, childPath);
-				} else if (fullyResolvedProperty instanceof ArraySchema) {
-					Schema itemsSchema = refResolver.resolveSchema(((ArraySchema) fullyResolvedProperty).getItems());
-					Schema fullyResolvedItems = resolveComposedSchema(itemsSchema, refResolver);
-					JSONArray array = new JSONArray();
-					array.put(fullyResolvedItems instanceof ObjectSchema
-							? buildRequiredPropertiesExample(fullyResolvedItems, refResolver, childPath + "_item")
-							: getPropertyExample(itemsSchema, refResolver, childPath + "_item"));
-					example = array;
-				} else {
-					example = getPropertyExample(refResolvedProperty, refResolver, childPath);
-				}
-				json.put(propertyName, example);
+				json.put(propertyName, buildRequiredPropertyExampleValue(property, refResolver, childPath));
 			} catch (JSONException e) {
 				log.warn("Error buildRequiredPropertiesExample", e);
 			}
 		}
 		return json;
+	}
+
+	/**
+	 * @param property required property's own (not yet resolved) Schema
+	 * @param refResolver instance of RefResolver
+	 * @param childPath underscore-joined property path for this property, used to key Project Properties when isInline is false
+	 * @return example value for this property
+	 * @throws JSONException
+	 */
+	@SuppressWarnings("rawtypes")
+	private Object buildRequiredPropertyExampleValue(Schema property, RefResolver refResolver, String childPath) throws JSONException {
+		Schema refResolvedProperty = refResolver.resolveSchema(property);
+		Schema fullyResolvedProperty = resolveComposedSchema(refResolvedProperty, refResolver);
+		if (fullyResolvedProperty instanceof ObjectSchema) {
+			return buildRequiredPropertiesExample(fullyResolvedProperty, refResolver, childPath);
+		}
+		if (fullyResolvedProperty instanceof ArraySchema) {
+			Schema itemsSchema = refResolver.resolveSchema(((ArraySchema) fullyResolvedProperty).getItems());
+			Schema fullyResolvedItems = resolveComposedSchema(itemsSchema, refResolver);
+			JSONArray array = new JSONArray();
+			array.put(fullyResolvedItems instanceof ObjectSchema
+					? buildRequiredPropertiesExample(fullyResolvedItems, refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX)
+					: getPropertyExample(itemsSchema, refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX));
+			return array;
+		}
+		return getPropertyExample(refResolvedProperty, refResolver, childPath);
 	}
 
 	/**
@@ -1448,6 +1460,30 @@ public class SoapUIProject {
 	}
 
 	/**
+	 * Error Case Context
+	 * Bundles the fields shared by every CaseErrorStatusCode{StatusCode}/CaseErrorRequired{Field} Test Case
+	 * builder, so those methods take one context argument instead of repeating the same several parameters
+	 */
+	private static final class ErrorCaseContext {
+		private final RestMethod restMethod;
+		private final RestRequest baseRequest;
+		private final WsdlTestSuite testSuite;
+		private final Operation operation;
+		private final RefResolver refResolver;
+		private final String method;
+
+		private ErrorCaseContext(RestMethod restMethod, RestRequest baseRequest, WsdlTestSuite testSuite,
+				Operation operation, RefResolver refResolver, String method) {
+			this.restMethod = restMethod;
+			this.baseRequest = baseRequest;
+			this.testSuite = testSuite;
+			this.operation = operation;
+			this.refResolver = refResolver;
+			this.method = method;
+		}
+	}
+
+	/**
 	 * Add Error Status Code Test Cases
 	 * Adds one {METHOD}_CaseErrorStatusCode{StatusCode} Test Case per distinct non-2xx, non-"default"
 	 * status code documented in the operation's responses, in declaration order
@@ -1462,25 +1498,25 @@ public class SoapUIProject {
 	private void addErrorStatusCodeTestCases(RestMethod restMethod, RestRequest baseRequest, WsdlTestSuite testSuite,
 			Operation operation, RefResolver refResolver, String method) {
 		if (operation == null || operation.getResponses() == null) return;
+		ErrorCaseContext context = new ErrorCaseContext(restMethod, baseRequest, testSuite, operation, refResolver, method);
 		for (Map.Entry<String, ApiResponse> entry : operation.getResponses().entrySet()) {
 			String code = entry.getKey();
 			if (code.equalsIgnoreCase(DEFAULT) || code.startsWith("2")) continue;
-			addErrorStatusCodeTestCase(restMethod, baseRequest, testSuite, operation, refResolver, method, code, entry.getValue());
+			addErrorStatusCodeTestCase(context, code, entry.getValue());
 		}
 	}
 
-	private void addErrorStatusCodeTestCase(RestMethod restMethod, RestRequest baseRequest, WsdlTestSuite testSuite,
-			Operation operation, RefResolver refResolver, String method, String statusCode, ApiResponse response) {
-		RestRequest variantRequest = restMethod.cloneRequest(baseRequest, SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX + statusCode);
-		applyMicrocksHeaderForStatus(variantRequest, operation, statusCode);
+	private void addErrorStatusCodeTestCase(ErrorCaseContext context, String statusCode, ApiResponse response) {
+		RestRequest variantRequest = context.restMethod.cloneRequest(context.baseRequest, SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX + statusCode);
+		applyMicrocksHeaderForStatus(variantRequest, context.operation, statusCode);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX + statusCode;
-		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
+		String testCaseName = context.method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_ERROR_STATUS_CODE_PREFIX + statusCode;
+		WsdlTestCase testCase = context.testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
 
 		addStatusCodeAssertion(testStep, statusCode);
-		addSchemaValidationAssertionForSchema(testStep, getJsonResponseSchema(response, refResolver), refResolver);
+		addSchemaValidationAssertionForSchema(testStep, getJsonResponseSchema(response, context.refResolver), context.refResolver);
 	}
 
 	/**
@@ -1518,11 +1554,12 @@ public class SoapUIProject {
 			}
 		}
 
+		ErrorCaseContext context = new ErrorCaseContext(restMethod, baseRequest, testSuite, operation, refResolver, method);
 		for (String path : requiredBodyPaths) {
-			addErrorRequiredBodyFieldTestCase(restMethod, baseRequest, testSuite, bodySchema, refResolver, operation, method, path, assertStatusCode, errorSchema);
+			addErrorRequiredBodyFieldTestCase(context, bodySchema, path, assertStatusCode, errorSchema);
 		}
 		for (Parameter param : requiredQueryParams) {
-			addErrorRequiredQueryFieldTestCase(restMethod, baseRequest, testSuite, operation, method, param, assertStatusCode, errorSchema, refResolver);
+			addErrorRequiredQueryFieldTestCase(context, param, assertStatusCode, errorSchema);
 		}
 	}
 
@@ -1562,16 +1599,15 @@ public class SoapUIProject {
 	}
 
 	@SuppressWarnings("rawtypes")
-	private void addErrorRequiredBodyFieldTestCase(RestMethod restMethod, RestRequest baseRequest, WsdlTestSuite testSuite,
-			Schema bodySchema, RefResolver refResolver, Operation operation, String method, String omitPath,
+	private void addErrorRequiredBodyFieldTestCase(ErrorCaseContext context, Schema bodySchema, String omitPath,
 			String assertStatusCode, Schema errorSchema) {
-		RestRequest variantRequest = restMethod.cloneRequest(baseRequest, SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + omitPath);
+		RestRequest variantRequest = context.restMethod.cloneRequest(context.baseRequest, SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + omitPath);
 
 		bodyPropertyCounter++;
 		currentBodyTokenTypes = new LinkedHashMap<>();
 		bodyVariantOmitPath = omitPath;
 		try {
-			JSONObject body = iterateProperties(bodySchema.getProperties(), refResolver, "");
+			JSONObject body = iterateProperties(bodySchema.getProperties(), context.refResolver, "");
 			String exampleStr = mapObjectToJsonString(body);
 			exampleStr = stripQuotesAroundNonStringTokens(exampleStr);
 			if (exampleStr != null) {
@@ -1580,31 +1616,30 @@ public class SoapUIProject {
 		} finally {
 			bodyVariantOmitPath = null;
 		}
-		applyMicrocksHeaderForStatus(variantRequest, operation, assertStatusCode);
+		applyMicrocksHeaderForStatus(variantRequest, context.operation, assertStatusCode);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + toCaseFieldName(omitPath);
-		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
+		String testCaseName = context.method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + toCaseFieldName(omitPath);
+		WsdlTestCase testCase = context.testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
 
 		addStatusCodeAssertion(testStep, assertStatusCode);
-		addSchemaValidationAssertionForSchema(testStep, errorSchema, refResolver);
+		addSchemaValidationAssertionForSchema(testStep, errorSchema, context.refResolver);
 	}
 
 	@SuppressWarnings("rawtypes")
-	private void addErrorRequiredQueryFieldTestCase(RestMethod restMethod, RestRequest baseRequest, WsdlTestSuite testSuite,
-			Operation operation, String method, Parameter param, String assertStatusCode, Schema errorSchema, RefResolver refResolver) {
-		RestRequest variantRequest = restMethod.cloneRequest(baseRequest, SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + param.getName());
+	private void addErrorRequiredQueryFieldTestCase(ErrorCaseContext context, Parameter param, String assertStatusCode, Schema errorSchema) {
+		RestRequest variantRequest = context.restMethod.cloneRequest(context.baseRequest, SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + param.getName());
 		setRequestParameterValue(variantRequest, param.getName(), "");
-		applyMicrocksHeaderForStatus(variantRequest, operation, assertStatusCode);
+		applyMicrocksHeaderForStatus(variantRequest, context.operation, assertStatusCode);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + toCaseFieldName(param.getName());
-		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
+		String testCaseName = context.method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + toCaseFieldName(param.getName());
+		WsdlTestCase testCase = context.testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		WsdlTestStep testStep = testCase.addTestStep(stepConfig);
 
 		addStatusCodeAssertion(testStep, assertStatusCode);
-		addSchemaValidationAssertionForSchema(testStep, errorSchema, refResolver);
+		addSchemaValidationAssertionForSchema(testStep, errorSchema, context.refResolver);
 	}
 
 	/**
@@ -1973,19 +2008,6 @@ public class SoapUIProject {
 	}
 
 	/**
-	 * Add Body Property Variant Test Cases
-	 * Targets the Method's JSON request
-	 * body rather than query parameters. Performs a preorder, depth-first walk of the body schema to find:
-	 *  - every required property (recursing into nested required objects/arrays of objects), each becoming a
-	 *    400 Test Case that omits just that one property from an otherwise-normal body
-	 *  - every scalar/object/array property, each becoming a 400 Test Case that substitutes a type-aware
-	 *    invalid value for just that one property, leaving every other property with its normal value
-	 * No-op when the Method has no JSON request body
-	 * @param restMethod instance of Method to generate variants for
-	 * @param testSuite Test Suite to add the variant Test Cases to
-	 * @param operation instance of OpenAPI Operation bound to this Method, or null if unknown
-	 */
-	/**
 	 * Get Request Body Json Schema
 	 * Finds the operation's JSON request body media type (if any) and returns its fully-resolved
 	 * ($ref + oneOf/anyOf/allOf composition) Schema, provided it declares at least one property
@@ -2038,7 +2060,7 @@ public class SoapUIProject {
 			if (resolvedProperty instanceof ObjectSchema) {
 				collectRequiredPropertyPaths(resolvedProperty, refResolver, childPath, out);
 			} else if (resolvedProperty instanceof ArraySchema) {
-				collectRequiredPropertyPaths(((ArraySchema) resolvedProperty).getItems(), refResolver, childPath + "_item", out);
+				collectRequiredPropertyPaths(((ArraySchema) resolvedProperty).getItems(), refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX, out);
 			}
 		});
 	}
@@ -2087,7 +2109,7 @@ public class SoapUIProject {
 		credentialsConfig.setAuthType(AuthType.O_AUTH_2_0);
 		variantRequest.getConfig().setCredentials(credentialsConfig);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_OK_SCOPE_PREFIX + toCaseFieldName(oAuth2Profile.getName());
+		String testCaseName = method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_OK_SCOPE_PREFIX + toCaseFieldName(oAuth2Profile.getName());
 		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		testCase.addTestStep(stepConfig);
@@ -2133,7 +2155,7 @@ public class SoapUIProject {
 		credentialsConfig.setAuthType(AuthType.O_AUTH_2_0);
 		variantRequest.getConfig().setCredentials(credentialsConfig);
 
-		String testCaseName = method + "_Case" + SERVICE_API_CASE_OK_APPLICATION_TOKEN_PREFIX + toCaseFieldName(oAuth2Profile.getName());
+		String testCaseName = method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_OK_APPLICATION_TOKEN_PREFIX + toCaseFieldName(oAuth2Profile.getName());
 		WsdlTestCase testCase = testSuite.addNewTestCase(testCaseName);
 		TestStepConfig stepConfig = RestRequestStepFactory.createConfig(variantRequest, EJECUTION_TEST_STEP + "_" + STEP_SUFFIX);
 		testCase.addTestStep(stepConfig);
