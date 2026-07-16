@@ -437,12 +437,7 @@ class SchemaPrettyPrintTest {
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, true, false, false, true, false, false, false, null);
 		List<String> scripts = extractAllScripts(soapUIProject.getFileContent());
-		assertEquals(2, scripts.size());
-
-		String schema1 = soapUIProject.getProject().getPropertyValue("schema1");
-		String schema2 = soapUIProject.getProject().getPropertyValue("schema2");
-		assertFalse(schema1.contains("\n"), "First operation's schema should be compact: " + schema1);
-		assertFalse(schema2.contains("\n"), "Second operation's schema should be compact too, not just the first one: " + schema2);
+		assertEquals(4, scripts.size(), "2 fixed Ok* cases per operation, for 2 operations");
 
 		String itemsBody = "{\"id\":1}";
 		String ordersBody = "{\"total\":5}";
@@ -450,24 +445,26 @@ class SchemaPrettyPrintTest {
 		int passesForOrders = 0;
 		for (String script : scripts) {
 			String stored = soapUIProject.getProject().getPropertyValue(extractPropertyKey(script));
+			assertFalse(stored.contains("\n"), "Schema should be compact: " + stored);
 			boolean itemsOk = evaluatesSuccessfully(script, stored, itemsBody);
 			boolean ordersOk = evaluatesSuccessfully(script, stored, ordersBody);
 			assertTrue(itemsOk ^ ordersOk, "Each assertion must validate exactly one of the two operation shapes: " + script);
 			if (itemsOk) passesForItems++; else passesForOrders++;
 		}
-		assertEquals(1, passesForItems);
-		assertEquals(1, passesForOrders);
+		assertEquals(2, passesForItems, "Both fixed Ok* cases for /items should validate the items schema");
+		assertEquals(2, passesForOrders, "Both fixed Ok* cases for /orders should validate the orders schema");
 	}
 
 	@Test
-	void schemaPrettyPrintFalse_hasNoEffectWhenValidateSchemaIsFalse() throws Exception {
+	void validateSchemaFalse_omitsSchemaAssertionButKeepsStatusCodeAssertion() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_ITEMS_SPEC);
 
 		for (boolean schemaIsInline : new boolean[]{false, true}) {
 			SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 					false, null, true, false, false, false, schemaIsInline, false, false, null);
 			String xml = soapUIProject.getFileContent();
-			assertFalse(xml.contains("Script Assertion"), "No assertion should be added when validateSchema is false (schemaIsInline=" + schemaIsInline + ")");
+			assertFalse(xml.contains("Script Assertion"), "validateSchema=false must omit the schema assertion (schemaIsInline=" + schemaIsInline + "): " + xml);
+			assertTrue(xml.contains("Valid HTTP Status Codes"), "The status-code assertion must remain regardless of validateSchema (schemaIsInline=" + schemaIsInline + "): " + xml);
 		}
 	}
 

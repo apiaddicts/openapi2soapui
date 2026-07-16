@@ -74,8 +74,8 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("authorizations_TestSuite")))
-				.andExpect(content().string(containsString("Application token_TestCase")));
+				.andExpect(content().string(containsString("authorizations_TestApi_1.0-Suite")))
+				.andExpect(content().string(containsString("POST_CaseApplication token")));
 	}
 
 	@Test
@@ -86,7 +86,7 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("authorizations_TestSuite"))));
+				.andExpect(content().string(not(containsString("authorizations_TestApi_1.0-Suite"))));
 	}
 
 	@Test
@@ -98,7 +98,7 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("authorizations_TestSuite"))));
+				.andExpect(content().string(not(containsString("authorizations_TestApi_1.0-Suite"))));
 	}
 
 	@Test
@@ -205,8 +205,8 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(containsString("First_TestCase")))
-				.andExpect(content().string(containsString("Second_TestCase")));
+				.andExpect(content().string(containsString("POST_CaseFirst")))
+				.andExpect(content().string(containsString("POST_CaseSecond")));
 	}
 
 	@Test

@@ -80,8 +80,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(containsString("scope admin_TestCase")));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(containsString("GET_CaseOkScopeAdmin")));
 	}
 
 	@Test
@@ -107,9 +107,9 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(containsString("scope admin_TestCase")))
-				.andExpect(content().string(not(containsString("scope qa_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(containsString("GET_CaseOkScopeAdmin")))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeQa"))));
 	}
 
 	@Test
@@ -122,8 +122,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeAdmin"))));
 	}
 
 	@Test
@@ -137,8 +137,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeAdmin"))));
 	}
 
 	@Test
@@ -152,8 +152,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeAdmin"))));
 	}
 
 	@Test
@@ -167,8 +167,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeAdmin"))));
 	}
 
 	@Test
@@ -182,8 +182,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(not(containsString("scope admin_TestCase"))));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeAdmin"))));
 	}
 
 	@Test
@@ -197,8 +197,8 @@ class SoapUIProjectControllerHasScopesTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(objectMapper.writeValueAsString(body)))
 				.andExpect(status().isOk())
-				.andExpect(content().string(not(containsString("scope dev_TestCase"))))
-				.andExpect(content().string(containsString("scope admin_TestCase")));
+				.andExpect(content().string(not(containsString("GET_CaseOkScopeDev"))))
+				.andExpect(content().string(containsString("GET_CaseOkScopeAdmin")));
 	}
 
 	@Test

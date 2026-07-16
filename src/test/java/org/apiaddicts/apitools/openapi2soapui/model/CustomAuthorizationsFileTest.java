@@ -153,8 +153,8 @@ class CustomAuthorizationsFileTest {
 
 		List<Element> testSuites = testSuitesInOrder(xml);
 		assertEquals(2, testSuites.size(), "Should have the authorizations suite plus the /users suite: " + xml);
-		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), "The authorizations suite must be first: " + xml);
-		assertTrue(testSuites.get(1).getAttribute("name").startsWith("/users_GET"), "The endpoint suite must come after: " + xml);
+		assertEquals("authorizations_TestApi_1.0-Suite", testSuites.get(0).getAttribute("name"), "The authorizations suite must be first: " + xml);
+		assertEquals("/users_TestApi_1.0-GET-Suite", testSuites.get(1).getAttribute("name"), "The endpoint suite must come after: " + xml);
 	}
 
 	@Test
@@ -167,10 +167,10 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Application token_TestCase"), xml);
-		assertTrue(xml.contains("User token_TestCase"), xml);
-		int applicationTokenIndex = xml.indexOf("Application token_TestCase");
-		int userTokenIndex = xml.indexOf("User token_TestCase");
+		assertTrue(xml.contains("POST_CaseApplication token"), xml);
+		assertTrue(xml.contains("POST_CaseUser token"), xml);
+		int applicationTokenIndex = xml.indexOf("POST_CaseApplication token");
+		int userTokenIndex = xml.indexOf("POST_CaseUser token");
 		assertTrue(applicationTokenIndex < userTokenIndex, "Test cases must be generated in the given order: " + xml);
 	}
 
@@ -199,7 +199,7 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("authorizations_TestSuite"), "No authorizations suite should be generated when the field is absent: " + xml);
+		assertFalse(xml.contains("authorizations_TestApi_1.0-Suite"), "No authorizations suite should be generated when the field is absent: " + xml);
 		assertEquals(1, testSuitesInOrder(xml).size(), "Only the endpoint suite should exist");
 	}
 
@@ -210,7 +210,7 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, Collections.emptyList());
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("authorizations_TestSuite"), "No authorizations suite should be generated for an empty list: " + xml);
+		assertFalse(xml.contains("authorizations_TestApi_1.0-Suite"), "No authorizations suite should be generated for an empty list: " + xml);
 		assertEquals(1, testSuitesInOrder(xml).size(), "Only the endpoint suite should exist");
 	}
 
@@ -225,9 +225,9 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		int first = xml.indexOf("First_TestCase");
-		int second = xml.indexOf("Second_TestCase");
-		int third = xml.indexOf("Third_TestCase");
+		int first = xml.indexOf("POST_CaseFirst");
+		int second = xml.indexOf("POST_CaseSecond");
+		int third = xml.indexOf("POST_CaseThird");
 		assertTrue(first >= 0 && second >= 0 && third >= 0, xml);
 		assertTrue(first < second && second < third, "Entries must appear in the given order (First, Second, Third), not reversed: " + xml);
 	}
@@ -242,7 +242,7 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(2, countOccurrences(xml, "Login_TestCase"), "Both entries must generate their own test case even with a duplicate name: " + xml);
+		assertEquals(2, countOccurrences(xml, "POST_CaseLogin"), "Both entries must generate their own test case even with a duplicate name: " + xml);
 	}
 
 	@Test
@@ -256,9 +256,10 @@ class CustomAuthorizationsFileTest {
 
 		List<Element> testSuites = testSuitesInOrder(xml);
 		assertEquals(2, testSuites.size(), xml);
-		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), xml);
-		assertTrue(testSuites.get(1).getAttribute("name").startsWith("/users_GET"), "The real /users GET suite must still be generated correctly even though a custom authorization reuses its name: " + xml);
-		assertEquals(1, countOccurrences(xml, "Success_TestCase"), "The real endpoint's default test case must still be generated exactly once: " + xml);
+		assertEquals("authorizations_TestApi_1.0-Suite", testSuites.get(0).getAttribute("name"), xml);
+		assertEquals("/users_TestApi_1.0-GET-Suite", testSuites.get(1).getAttribute("name"), "The real /users GET suite must still be generated correctly even though a custom authorization reuses its name: " + xml);
+		assertEquals(1, countOccurrences(xml, "GET_CaseOkAllProperties"), "The real endpoint's fixed OkAllProperties test case must still be generated exactly once: " + xml);
+		assertEquals(1, countOccurrences(xml, "GET_CaseOkRequiredProperties"), "The real endpoint's fixed OkRequiredProperties test case must still be generated exactly once: " + xml);
 	}
 
 	@Test
@@ -280,7 +281,7 @@ class CustomAuthorizationsFileTest {
 		boolean found = false;
 		for (int i = 0; i < testCases.getLength(); i++) {
 			Element element = (Element) testCases.item(i);
-			if ((weirdName + "_TestCase").equals(element.getAttribute("name"))) {
+			if (("POST_Case" + weirdName).equals(element.getAttribute("name"))) {
 				found = true;
 				break;
 			}
@@ -310,7 +311,7 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, Arrays.asList(request));
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Login_TestCase"), xml);
+		assertTrue(xml.contains("POST_CaseLogin"), xml);
 	}
 
 	@Test
@@ -322,7 +323,7 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Login redirect_TestCase"), xml);
+		assertTrue(xml.contains("GET_CaseLogin redirect"), xml);
 	}
 
 	@Test
@@ -335,8 +336,8 @@ class CustomAuthorizationsFileTest {
 		SoapUIProject soapUIProject = buildProject(openAPI, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Lowercase_TestCase"), xml);
-		assertTrue(xml.contains("MixedCase_TestCase"), xml);
+		assertTrue(xml.contains("POST_CaseLowercase"), xml);
+		assertTrue(xml.contains("GET_CaseMixedCase"), xml);
 	}
 
 	@Test
@@ -349,9 +350,9 @@ class CustomAuthorizationsFileTest {
 				true, null, true, false, false, false, false, false, false, false, false, null, null, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Login_TestCase"), "readOnly must not exclude the custom authorization request even though its method is POST: " + xml);
-		assertFalse(xml.contains("/users_POST_TestSuite"), "readOnly must still exclude the real POST endpoint suite: " + xml);
-		assertTrue(xml.contains("/users_GET_TestSuite"), xml);
+		assertTrue(xml.contains("POST_CaseLogin"), "readOnly must not exclude the custom authorization request even though its method is POST: " + xml);
+		assertFalse(xml.contains("/users_TestApi_1.0-POST-Suite"), "readOnly must still exclude the real POST endpoint suite: " + xml);
+		assertTrue(xml.contains("/users_TestApi_1.0-GET-Suite"), xml);
 	}
 
 	@Test
@@ -380,10 +381,10 @@ class CustomAuthorizationsFileTest {
 				false, null, true, false, false, false, false, false, false, true, false, 2, null, customAuthorizationsFile);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("Login_TestCase"), xml);
-		assertTrue(xml.contains("scope admin_TestCase"), "The default test case already covers the first profile (dev); only the second gets an extra scope variant: " + xml);
+		assertTrue(xml.contains("POST_CaseLogin"), xml);
+		assertTrue(xml.contains("GET_CaseOkScopeAdmin"), "The default test case already covers the first profile (dev); only the second gets an extra scope variant: " + xml);
 		List<Element> testSuites = testSuitesInOrder(xml);
-		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), "The authorizations suite must still be first even when hasScopes/oAuth2Profiles are also used: " + xml);
+		assertEquals("authorizations_TestApi_1.0-Suite", testSuites.get(0).getAttribute("name"), "The authorizations suite must still be first even when hasScopes/oAuth2Profiles are also used: " + xml);
 	}
 
 	@Test
@@ -397,7 +398,7 @@ class CustomAuthorizationsFileTest {
 
 		List<Element> testSuites = testSuitesInOrder(xml);
 		assertEquals(1, testSuites.size(), "A spec with no paths must still generate the authorizations suite alone, without crashing: " + xml);
-		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), xml);
+		assertEquals("authorizations_TestApi_1.0-Suite", testSuites.get(0).getAttribute("name"), xml);
 	}
 
 	@Test
@@ -413,7 +414,7 @@ class CustomAuthorizationsFileTest {
 
 		int previousIndex = -1;
 		for (int i = 0; i < 20; i++) {
-			int index = xml.indexOf("Login" + i + "_TestCase");
+			int index = xml.indexOf("POST_CaseLogin" + i + "\"");
 			assertTrue(index > previousIndex, "Login" + i + " must appear after the previous entry in document order: " + xml);
 			previousIndex = index;
 		}
@@ -443,6 +444,6 @@ class CustomAuthorizationsFileTest {
 
 		List<Element> testSuites = testSuitesInOrder(xml);
 		assertEquals(3, testSuites.size(), xml);
-		assertEquals("authorizations_TestSuite", testSuites.get(0).getAttribute("name"), xml);
+		assertEquals("authorizations_TestApi_1.0-Suite", testSuites.get(0).getAttribute("name"), xml);
 	}
 }

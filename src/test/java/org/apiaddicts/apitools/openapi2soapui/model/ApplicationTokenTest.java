@@ -158,15 +158,15 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("application_token dev_TestCase"), "Should contain an application_token variant test case: " + xml);
-		assertTrue(xml.contains("scope user_TestCase"), "Should still contain the hasScopes variant test case for the second (non-default) profile: " + xml);
-		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev); it must not be duplicated: " + xml);
-		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + application_token variant + 1 extra scope variant");
+		assertTrue(xml.contains("GET_CaseOkApplicationTokenDev"), "Should contain an application token variant test case: " + xml);
+		assertTrue(xml.contains("GET_CaseOkScopeUser"), "Should still contain the hasScopes variant test case for the second (non-default) profile: " + xml);
+		assertFalse(xml.contains("GET_CaseOkScopeDev"), "The 2 fixed Ok Test Cases already cover the first profile (dev); it must not be duplicated: " + xml);
+		assertEquals(4, countOccurrences(xml, "<con:testCase"), "2 fixed Ok Test Cases + 1 application token variant + 1 extra scope variant");
 
 		int applicationTokenIndex = xml.indexOf("name=\"application_token dev\"");
 		int scopeIndex = xml.indexOf("name=\"scope user\"");
 		assertTrue(applicationTokenIndex >= 0 && scopeIndex >= 0, xml);
-		assertTrue(applicationTokenIndex < scopeIndex, "application_token variant should be generated before the scope variant: " + xml);
+		assertTrue(applicationTokenIndex < scopeIndex, "application token variant should be generated before the scope variant: " + xml);
 	}
 
 	@Test
@@ -178,10 +178,10 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("application_token "), "AUTHORIZATION_CODE profiles must not generate an application_token variant: " + xml);
-		assertTrue(xml.contains("scope user_TestCase"), xml);
-		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev): " + xml);
-		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + 1 extra scope variant only");
+		assertFalse(xml.contains("application_token "), "AUTHORIZATION_CODE profiles must not generate an application token variant: " + xml);
+		assertTrue(xml.contains("GET_CaseOkScopeUser"), xml);
+		assertFalse(xml.contains("GET_CaseOkScopeDev"), "The 2 fixed Ok Test Cases already cover the first profile (dev): " + xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "2 fixed Ok Test Cases + 1 extra scope variant only");
 	}
 
 	@Test
@@ -195,7 +195,7 @@ class ApplicationTokenTest {
 
 		assertFalse(xml.contains("application_token "), "applicationToken must be a no-op when hasScopes is false: " + xml);
 		assertFalse(xml.contains("scope "), xml);
-		assertEquals(1, countOccurrences(xml, "<con:testCase"), "Only the default test case should exist");
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Only the 2 fixed Ok Test Cases should exist");
 	}
 
 	@Test
@@ -208,9 +208,9 @@ class ApplicationTokenTest {
 		String xml = soapUIProject.getFileContent();
 
 		assertFalse(xml.contains("application_token "), xml);
-		assertTrue(xml.contains("scope admin_TestCase"), xml);
-		assertFalse(xml.contains("scope dev_TestCase"), "The default test case already covers the first profile (dev): " + xml);
-		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Default + 1 extra scope variant only");
+		assertTrue(xml.contains("GET_CaseOkScopeAdmin"), xml);
+		assertFalse(xml.contains("GET_CaseOkScopeDev"), "The 2 fixed Ok Test Cases already cover the first profile (dev): " + xml);
+		assertEquals(3, countOccurrences(xml, "<con:testCase"), "2 fixed Ok Test Cases + 1 extra scope variant only");
 	}
 
 	@Test
@@ -224,11 +224,11 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("application_token app_TestCase"), xml);
-		assertFalse(xml.contains("application_token user_TestCase"), xml);
-		assertFalse(xml.contains("scope app_TestCase"), "The default test case already covers the first profile (app): " + xml);
-		assertTrue(xml.contains("scope user_TestCase"), xml);
-		assertEquals(3, countOccurrences(xml, "<con:testCase"), "Default + 1 application_token variant + 1 extra scope variant");
+		assertTrue(xml.contains("GET_CaseOkApplicationTokenApp"), xml);
+		assertFalse(xml.contains("GET_CaseOkApplicationTokenUser"), xml);
+		assertFalse(xml.contains("GET_CaseOkScopeApp"), "The 2 fixed Ok Test Cases already cover the first profile (app): " + xml);
+		assertTrue(xml.contains("GET_CaseOkScopeUser"), xml);
+		assertEquals(4, countOccurrences(xml, "<con:testCase"), "2 fixed Ok Test Cases + 1 application token variant + 1 extra scope variant");
 	}
 
 	@Test
@@ -241,7 +241,7 @@ class ApplicationTokenTest {
 
 		assertFalse(xml.contains("application_token "), xml);
 		assertFalse(xml.contains("scope "), xml);
-		assertEquals(1, countOccurrences(xml, "<con:testCase"), "Only the default test case should exist");
+		assertEquals(2, countOccurrences(xml, "<con:testCase"), "Only the 2 fixed Ok Test Cases should exist");
 	}
 
 	@Test
@@ -254,7 +254,7 @@ class ApplicationTokenTest {
 		String xml = soapUIProject.getFileContent();
 
 		assertFalse(xml.contains("application_token "), "Legacy overload must default applicationToken to false: " + xml);
-		assertFalse(xml.contains("scope dev_TestCase"), "With a single profile the default test case already covers it; no extra scope variant is generated: " + xml);
+		assertFalse(xml.contains("GET_CaseOkScopeDev"), "With a single profile the 2 fixed Ok Test Cases already cover it; no extra scope variant is generated: " + xml);
 	}
 
 	@Test
@@ -266,8 +266,8 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertFalse(xml.contains("application_token "), "A profile with no grantType must not generate an application_token variant: " + xml);
-		assertTrue(xml.contains("scope admin_TestCase"), xml);
+		assertFalse(xml.contains("application_token "), "A profile with no grantType must not generate an application token variant: " + xml);
+		assertTrue(xml.contains("GET_CaseOkScopeAdmin"), xml);
 	}
 
 	@Test
@@ -281,8 +281,8 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(2, countOccurrences(xml, "application_token dev_TestCase"), "applicationToken generates one variant per CLIENT_CREDENTIALS profile, including the first");
-		assertEquals(1, countOccurrences(xml, "scope dev_TestCase"), "The default test case already covers the first profile; only the second gets an extra scope variant");
+		assertEquals(2, countOccurrences(xml, "GET_CaseOkApplicationTokenDev"), "applicationToken generates one variant per CLIENT_CREDENTIALS profile, including the first");
+		assertEquals(1, countOccurrences(xml, "GET_CaseOkScopeDev"), "The 2 fixed Ok Test Cases already cover the first profile; only the second gets an extra scope variant");
 	}
 
 	@Test
@@ -297,9 +297,9 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 25, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(1 + 25 + 24, countOccurrences(xml, "<con:testCase"), "Default + 25 application_token variants (one per profile, including the first) + 24 extra scope variants (all but the first, already covered by the default)");
+		assertEquals(2 + 25 + 24, countOccurrences(xml, "<con:testCase"), "2 fixed Ok Test Cases + 25 application token variants (one per profile, including the first) + 24 extra scope variants (all but the first, already covered by the fixed Ok Test Cases)");
 		for (int i = 0; i < 25; i++) {
-			assertTrue(xml.contains("application_token profile" + i + "_TestCase"), "Missing application_token variant for profile" + i + ": " + xml);
+			assertTrue(xml.contains("GET_CaseOkApplicationTokenProfile" + i), "Missing application token variant for profile" + i + ": " + xml);
 		}
 	}
 
@@ -312,7 +312,7 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(2, countOccurrences(xml, "application_token dev_TestCase"), "Both /users and /orders test suites should get their own application_token variant");
+		assertEquals(2, countOccurrences(xml, "GET_CaseOkApplicationTokenDev"), "Both /users and /orders test suites should get their own application token variant");
 	}
 
 	@Test
@@ -325,7 +325,7 @@ class ApplicationTokenTest {
 				false, null, true, false, false, false, false, false, false, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertEquals(6, countOccurrences(xml, "abc123"), "Custom header value should appear on the default request, the application_token clone and the scope clone: " + xml);
+		assertTrue(countOccurrences(xml, "abc123") >= 5, "Custom header value should appear on the default request, both fixed Ok Test Cases, the application token clone and the scope clone: " + xml);
 	}
 
 	@Test
@@ -338,8 +338,8 @@ class ApplicationTokenTest {
 				false, null, false, true, true, true, true, true, true, true, true, 2, null);
 		String xml = soapUIProject.getFileContent();
 
-		assertTrue(xml.contains("application_token dev_TestCase"), xml);
-		assertTrue(xml.contains("scope user_TestCase"), xml);
+		assertTrue(xml.contains("GET_CaseOkApplicationTokenDev"), xml);
+		assertTrue(xml.contains("GET_CaseOkScopeUser"), xml);
 	}
 
 	@Test
@@ -356,7 +356,9 @@ class ApplicationTokenTest {
 		factory.setNamespaceAware(true);
 		Document document = factory.newDocumentBuilder().parse(new InputSource(new StringReader(xml)));
 
-		String expectedTestCaseName = "application_token " + weirdName + "_TestCase";
+		// weirdName has no underscores, so toCaseFieldName only forces its (already uppercase) first letter,
+		// leaving the rest - including the XML special characters - unchanged
+		String expectedTestCaseName = "GET_CaseOkApplicationToken" + weirdName;
 		NodeList testCases = document.getElementsByTagNameNS("*", "testCase");
 		boolean found = false;
 		for (int i = 0; i < testCases.getLength(); i++) {

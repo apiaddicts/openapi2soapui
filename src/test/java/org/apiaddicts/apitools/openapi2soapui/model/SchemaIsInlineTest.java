@@ -228,16 +228,21 @@ class SchemaIsInlineTest {
 	}
 
 	@Test
-	void validateSchemaFalse_neverGeneratesAssertionRegardlessOfSchemaIsInline() throws Exception {
+	void validateSchemaFalse_omitsSchemaAssertionButKeepsStatusCodeAssertion() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_ITEMS_SPEC);
 
-		for (boolean schemaIsInline : new boolean[]{false, true}) {
-			SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
-					false, null, true, false, false, false, schemaIsInline, false, null);
-			String xml = soapUIProject.getFileContent();
-			assertFalse(xml.contains("Script Assertion"), "No assertion should be added when validateSchema is false (schemaIsInline=" + schemaIsInline + ")");
-			assertNull(soapUIProject.getProject().getPropertyValue("schema1"), "No schema property should be registered (schemaIsInline=" + schemaIsInline + ")");
-		}
+		SoapUIProject withSchemaValidation = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, true, false, false, null);
+		String xmlWithSchema = withSchemaValidation.getFileContent();
+		assertTrue(xmlWithSchema.contains("Script Assertion"), "validateSchema=true (or omitted, the default) must add the schema assertion");
+		assertNotNull(withSchemaValidation.getProject().getPropertyValue("schema1"), "schemaIsInline=false must still register the schema Project Property");
+
+		SoapUIProject withoutSchemaValidation = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, false, false, false, null);
+		String xmlWithoutSchema = withoutSchemaValidation.getFileContent();
+		assertFalse(xmlWithoutSchema.contains("Script Assertion"), "validateSchema=false must omit the schema assertion: " + xmlWithoutSchema);
+		assertTrue(xmlWithoutSchema.contains("Valid HTTP Status Codes"), "The status-code assertion must remain regardless of validateSchema: " + xmlWithoutSchema);
+		assertNull(withoutSchemaValidation.getProject().getPropertyValue("schema1"), "No schema property should be registered when validateSchema is false");
 	}
 
 	@Test
@@ -273,13 +278,14 @@ class SchemaIsInlineTest {
 		String xml = soapUIProject.getFileContent();
 		List<String> scripts = extractAllScripts(xml);
 
-		assertEquals(1, scripts.size());
-		assertTrue(scripts.get(0).contains("context.expand("), "Omitted schemaIsInline should default to the external/false behavior: " + scripts.get(0));
+		assertEquals(2, scripts.size(), "Both fixed Ok* cases get their own schema assertion");
+		scripts.forEach(script -> assertTrue(script.contains("context.expand("), "Omitted schemaIsInline should default to the external/false behavior: " + script));
 		assertNotNull(soapUIProject.getProject().getPropertyValue("schema1"));
+		assertNotNull(soapUIProject.getProject().getPropertyValue("schema2"));
 	}
 
 	@Test
-	void multipleTestCaseNames_generateIndependentlyValidatingProperties() throws Exception {
+	void testCaseNames_generateAdditionalIndependentlyValidatingProperties() throws Exception {
 		OpenAPI openAPI = parseSpec(SIMPLE_ITEMS_SPEC);
 		Set<String> testCaseNames = new LinkedHashSet<>(Arrays.asList("Success", "Alt"));
 
@@ -288,10 +294,7 @@ class SchemaIsInlineTest {
 		String xml = soapUIProject.getFileContent();
 		List<String> scripts = extractAllScripts(xml);
 
-		assertEquals(2, scripts.size(), "Should generate one assertion per test case name");
-		String schema1 = soapUIProject.getProject().getPropertyValue("schema1");
-		String schema2 = soapUIProject.getProject().getPropertyValue("schema2");
-		assertTrue(schema1 != null && schema1.equals(schema2), "Both test cases share the same operation schema");
+		assertEquals(4, scripts.size(), "2 fixed Ok* cases + 2 custom testCaseNames, each with its own schema assertion");
 
 		for (String script : scripts) {
 			String stored = soapUIProject.getProject().getPropertyValue(extractPropertyKey(script));
@@ -342,7 +345,7 @@ class SchemaIsInlineTest {
 				false, null, true, false, false, true, false, false, null);
 		String xml = soapUIProject.getFileContent();
 		List<String> scripts = extractAllScripts(xml);
-		assertEquals(2, scripts.size());
+		assertEquals(4, scripts.size(), "2 fixed Ok* cases per operation, for 2 operations");
 
 		String itemsBody = "{\"id\":1}";
 		String ordersBody = "{\"total\":5}";
@@ -355,8 +358,8 @@ class SchemaIsInlineTest {
 			assertTrue(itemsOk ^ ordersOk, "Each assertion must validate exactly one of the two operation shapes: " + script);
 			if (itemsOk) passesForItems++; else passesForOrders++;
 		}
-		assertEquals(1, passesForItems, "Exactly one assertion should be wired to the items schema");
-		assertEquals(1, passesForOrders, "Exactly one assertion should be wired to the orders schema");
+		assertEquals(2, passesForItems, "Both fixed Ok* cases for /items should validate the items schema");
+		assertEquals(2, passesForOrders, "Both fixed Ok* cases for /orders should validate the orders schema");
 	}
 
 	@Test
@@ -397,15 +400,17 @@ class SchemaIsInlineTest {
 
 		assertTrue(xml.contains("${#Project#body1_name}"), "Body token should be present: " + xml);
 		List<String> scripts = extractAllScripts(xml);
-		assertEquals(1, scripts.size());
-		assertEquals("schema1", extractPropertyKey(scripts.get(0)), "Schema property key must not collide with body property keys");
-
+		assertEquals(2, scripts.size(), "Both fixed Ok* cases get their own schema assertion");
 		assertEquals("", soapUIProject.getProject().getPropertyValue("body1_name"));
-		String storedSchema = soapUIProject.getProject().getPropertyValue("schema1");
-		assertTrue(storedSchema.contains("\"id\""));
 
-		assertTrue(evaluatesSuccessfully(scripts.get(0), storedSchema, "{\"id\":7}"));
-		assertFalse(evaluatesSuccessfully(scripts.get(0), storedSchema, "{}"));
+		for (String script : scripts) {
+			String key = extractPropertyKey(script);
+			assertTrue(key.equals("schema1") || key.equals("schema2"), "Schema property key must not collide with body property keys: " + key);
+			String storedSchema = soapUIProject.getProject().getPropertyValue(key);
+			assertTrue(storedSchema.contains("\"id\""));
+			assertTrue(evaluatesSuccessfully(script, storedSchema, "{\"id\":7}"));
+			assertFalse(evaluatesSuccessfully(script, storedSchema, "{}"));
+		}
 	}
 
 	@Test
