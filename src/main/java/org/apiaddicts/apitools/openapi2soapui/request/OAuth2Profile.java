@@ -1,6 +1,6 @@
 package org.apiaddicts.apitools.openapi2soapui.request;
 
-import javax.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotEmpty;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

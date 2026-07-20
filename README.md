@@ -72,16 +72,16 @@ The variables are obtained from:
 
 |Technology              |Description                 |
 |------------------------|----------------------------|
-|Core Framework          |Spring Boot 2               |
+|Core Framework          |Spring Boot 3               |
 
 ### Server - Backend
 
 |Technology                                               |Description                                                                   |
 |---------------------------------------------------------|------------------------------------------------------------------------------|
-|[JDK 11](https://docs.oracle.com/en/java/javase/11/)                       |Java Development Kit                                                          |
-|[Spring Boot 2](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
+|[JDK 21](https://docs.oracle.com/en/java/javase/21/)                       |Java Development Kit                                                          |
+|[Spring Boot 3](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
 |[Maven 3](https://maven.apache.org)                      |Dependency Management                                                         |
-|[Tomcat 9](https://tomcat.apache.org)                    |Server deploy WAR                                                             |
+|[Tomcat 10.1+](https://tomcat.apache.org)                |Server deploy WAR (Jakarta EE / Servlet 6)                                    |
 
 ###  Libraries and Plugins
 |Technology              |Description                 |
@@ -98,7 +98,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-* [JDK Installation](https://docs.oracle.com/en/java/javase/11/install/overview-jdk-installation.html#GUID-8677A77F-231A-40F7-98B9-1FD0B48C346A)
+* [JDK Installation](https://docs.oracle.com/en/java/javase/21/install/overview-jdk-installation.html)
 * [Apache Maven Installation](https://maven.apache.org/install.html)
 * [Setting up Lombok](https://projectlombok.org/setup/overview)
   * [Eclipse and its offshoots](https://projectlombok.org/setup/eclipse)

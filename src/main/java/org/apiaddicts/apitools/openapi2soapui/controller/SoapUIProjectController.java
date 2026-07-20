@@ -1,6 +1,6 @@
 package org.apiaddicts.apitools.openapi2soapui.controller;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 import lombok.AllArgsConstructor;
 import org.springframework.validation.annotation.Validated;

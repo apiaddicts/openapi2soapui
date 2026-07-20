@@ -3,8 +3,8 @@ package org.apiaddicts.apitools.openapi2soapui.request;
 import java.util.List;
 import java.util.Set;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotEmpty;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
