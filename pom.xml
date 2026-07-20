@@ -53,6 +53,7 @@
 		<springdoc.version>2.8.17</springdoc.version>
 		<soapui.version>5.9.1</soapui.version>
 		<swagger-parser.version>2.1.45</swagger-parser.version>
+		<json.version>20260522</json.version>
 		<lombok.version>1.18.46</lombok.version>
 	</properties>
 
@@ -431,7 +432,7 @@
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
-			<version>20260522</version>
+			<version>${json.version}</version>
 		</dependency>
 
 	</dependencies>
