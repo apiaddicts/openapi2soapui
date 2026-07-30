@@ -844,7 +844,7 @@ public class SoapUIProject {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date())));
 		} else if (property instanceof DateTimeSchema) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDateTime, new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date())));
-		} else if (property instanceof StringSchema || "string".equals(property.getType())) {
+		} else if (property instanceof StringSchema || STRING_TYPE.equals(property.getType())) {
 			return registerBodyValue(path, getStringExample(property));
 		}
 		return registerBodyValue(path, "");
@@ -928,6 +928,8 @@ public class SoapUIProject {
 		}
 		return schema;
 	}
+
+	private static final String STRING_TYPE = "string";
 
 	private static final int MAX_ALLOF_DEPTH = 20;
 
@@ -1768,31 +1770,49 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private Object buildJsonSchemaDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		if (schema == null) return null;
-		String ref = schema.get$ref();
-		if (ref != null) {
-			if (refsInPath.contains(ref)) {
-				return new LinkedHashMap<>();
-			}
-			Schema target = resolveComponentSchema(ref);
-			if (target == null) return new LinkedHashMap<>();
-			Set<String> nextRefsInPath = new HashSet<>(refsInPath);
-			nextRefsInPath.add(ref);
-			return buildJsonSchemaDefinition(target, refResolver, nextRefsInPath);
+		if (schema.get$ref() != null) {
+			return buildRefDefinition(schema.get$ref(), refResolver, refsInPath);
 		}
 		boolean nullable = Boolean.TRUE.equals(schema.getNullable());
+		Object composed = buildComposedDefinition(schema, refResolver, refsInPath);
+		if (composed != null) {
+			return applyNullable(composed, nullable);
+		}
+		return applyNullable(buildLeafDefinition(schema, refResolver, refsInPath), nullable);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildRefDefinition(String ref, RefResolver refResolver, Set<String> refsInPath) {
+		if (refsInPath.contains(ref)) {
+			return new LinkedHashMap<>();
+		}
+		Schema target = resolveComponentSchema(ref);
+		if (target == null) return new LinkedHashMap<>();
+		Set<String> nextRefsInPath = new HashSet<>(refsInPath);
+		nextRefsInPath.add(ref);
+		return buildJsonSchemaDefinition(target, refResolver, nextRefsInPath);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildComposedDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		if (schema.getAllOf() != null && !schema.getAllOf().isEmpty()) {
-			return applyNullable(buildJsonSchemaDefinition(mergeAllOf(schema.getAllOf(), refResolver), refResolver, refsInPath), nullable);
+			return buildJsonSchemaDefinition(mergeAllOf(schema.getAllOf(), refResolver), refResolver, refsInPath);
 		}
 		List<Schema> alternatives = (schema.getOneOf() != null && !schema.getOneOf().isEmpty()) ? schema.getOneOf() : schema.getAnyOf();
-		if (alternatives != null && !alternatives.isEmpty()) {
-			Map<String, Object> definition = new LinkedHashMap<>();
-			List<Object> anyOf = new ArrayList<>();
-			for (Schema alternative : alternatives) {
-				anyOf.add(buildJsonSchemaDefinition(alternative, refResolver, refsInPath));
-			}
-			definition.put("anyOf", anyOf);
-			return applyNullable(definition, nullable);
+		if (alternatives == null || alternatives.isEmpty()) {
+			return null;
 		}
+		Map<String, Object> definition = new LinkedHashMap<>();
+		List<Object> anyOf = new ArrayList<>();
+		for (Schema alternative : alternatives) {
+			anyOf.add(buildJsonSchemaDefinition(alternative, refResolver, refsInPath));
+		}
+		definition.put("anyOf", anyOf);
+		return definition;
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildLeafDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		Map<String, Object> definition = new LinkedHashMap<>();
 		if (schema.getEnum() != null && !schema.getEnum().isEmpty()) {
 			definition.put("enum", schema.getEnum());
@@ -1806,26 +1826,36 @@ public class SoapUIProject {
 			definition.put("type", "number");
 		} else if (schema instanceof BooleanSchema) {
 			definition.put("type", "boolean");
-		} else if (schema instanceof StringSchema || schema instanceof DateSchema || "string".equals(schema.getType())) {
-			definition.put("type", "string");
+		} else if (isStringType(schema)) {
+			definition.put("type", STRING_TYPE);
 		} else {
-			definition.put("type", "object");
-			Map<String, Object> properties = new LinkedHashMap<>();
-			if (schema.getProperties() != null) {
-				Map<String, Schema> schemaProperties = schema.getProperties();
-				schemaProperties.forEach((propertyName, propertySchema) ->
-						properties.put(propertyName, buildJsonSchemaDefinition(propertySchema, refResolver, refsInPath)));
-			}
-			definition.put("properties", properties);
-			if (schema.getRequired() != null) {
-				definition.put("required", schema.getRequired());
-			}
-			if (Boolean.FALSE.equals(schema.getAdditionalProperties())) {
-				definition.put("additionalProperties", false);
-			}
+			buildObjectDefinition(schema, definition, refResolver, refsInPath);
 		}
 		addCommonConstraints(schema, definition);
-		return applyNullable(definition, nullable);
+		return definition;
+	}
+
+	@SuppressWarnings("rawtypes")
+	private boolean isStringType(Schema schema) {
+		return schema instanceof StringSchema || schema instanceof DateSchema || STRING_TYPE.equals(schema.getType());
+	}
+
+	@SuppressWarnings("rawtypes")
+	private void buildObjectDefinition(Schema schema, Map<String, Object> definition, RefResolver refResolver, Set<String> refsInPath) {
+		definition.put("type", "object");
+		Map<String, Object> properties = new LinkedHashMap<>();
+		if (schema.getProperties() != null) {
+			Map<String, Schema> schemaProperties = schema.getProperties();
+			schemaProperties.forEach((propertyName, propertySchema) ->
+					properties.put(propertyName, buildJsonSchemaDefinition(propertySchema, refResolver, refsInPath)));
+		}
+		definition.put("properties", properties);
+		if (schema.getRequired() != null) {
+			definition.put("required", schema.getRequired());
+		}
+		if (Boolean.FALSE.equals(schema.getAdditionalProperties())) {
+			definition.put("additionalProperties", false);
+		}
 	}
 
 	/**
