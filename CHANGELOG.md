@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.0-beta-2] - 2026-07-30
+
+### Fixed
+- String fields with `format` `date-time`, `email`, `uuid`, `password`, `byte`, `binary` now generate a valid `type: string` schema (previously a malformed `type: object`) and apply the configured `examples` value (e.g. `dateTime`). `date` unchanged.
+- `allOf` nested inside another `allOf` is now flattened recursively, so member fields are no longer dropped.
+
 ## [2.0.0-beta-1] - 2026-07-20
 
 ### Changed

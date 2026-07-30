@@ -97,6 +97,31 @@ class SchemaIsInlineTest {
 			"                    enum: ['C:\\Users\\a', 'C:\\Users\\b']"
 	);
 
+	private static final String DATE_TIME_SPEC = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /events:",
+			"    get:",
+			"      operationId: getEvents",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"          content:",
+			"            application/json:",
+			"              schema:",
+			"                type: object",
+			"                required: [id]",
+			"                properties:",
+			"                  id:",
+			"                    type: integer",
+			"                  createdAt:",
+			"                    type: string",
+			"                    format: date-time"
+	);
+
 	private OpenAPI parseSpec() {
 		return parseSpec(SPEC);
 	}
@@ -422,6 +447,27 @@ class SchemaIsInlineTest {
 
 		assertTrue(evaluatesSuccessfully(script, null, "{\"id\":1,\"path\":\"C:\\\\Users\\\\a\"}"));
 		assertFalse(evaluatesSuccessfully(script, null, "{\"id\":1,\"path\":\"C:\\\\Users\\\\c\"}"));
+	}
+
+	@Test
+	void dateTimeField_generatesStringTypeSchema_notMalformedObject() throws Exception {
+		OpenAPI openAPI = parseSpec(DATE_TIME_SPEC);
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, true, true, false, null);
+		String script = extractScript(soapUIProject.getFileContent());
+
+		int start = script.indexOf("parseText('''");
+		assertTrue(start >= 0, "schemaIsInline=true should embed the schema literally: " + script);
+		start += "parseText('''".length();
+		int end = script.indexOf("''')", start);
+		assertTrue(end > start, "Should find the embedded schema JSON bounds: " + script);
+		org.json.JSONObject schema = new org.json.JSONObject(script.substring(start, end));
+
+		org.json.JSONObject createdAt = schema.getJSONObject("properties").getJSONObject("createdAt");
+
+		assertEquals("string", createdAt.getString("type"), "date-time must be typed as string: " + createdAt);
+		assertEquals("date-time", createdAt.getString("format"), "date-time format must be preserved: " + createdAt);
+		assertFalse(createdAt.has("properties"), "date-time must not be treated as an object with properties: " + createdAt);
 	}
 
 	@Test

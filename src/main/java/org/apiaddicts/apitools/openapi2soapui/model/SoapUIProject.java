@@ -97,6 +97,7 @@ import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.DateSchema;
+import io.swagger.v3.oas.models.media.DateTimeSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.NumberSchema;
@@ -841,24 +842,28 @@ public class SoapUIProject {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getBooleanValue, true));
 		} else if (property instanceof DateSchema) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date())));
-		} else if (property instanceof StringSchema) {
-			return registerBodyValue(path, getStringExample((StringSchema) property));
+		} else if (property instanceof DateTimeSchema) {
+			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDateTime, new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date())));
+		} else if (property instanceof StringSchema || "string".equals(property.getType())) {
+			return registerBodyValue(path, getStringExample(property));
 		}
 		return registerBodyValue(path, "");
 	}
 
 	/**
-	 * Get example for a String schema, honoring enum values and the date-time format before falling back
-	 * to a configured/default string
-	 * @param stringProperty String Schema
+	 * Get example for a string-typed schema (StringSchema or any string format subtype such as
+	 * EmailSchema/UUIDSchema/PasswordSchema/ByteArraySchema/BinarySchema), honoring enum values and the
+	 * date-time format before falling back to a configured/default string.
+	 * @param stringProperty string-typed Schema
 	 * @return example value
 	 */
-	private Object getStringExample(StringSchema stringProperty) {
-		List<String> enums = stringProperty.getEnum();
+	@SuppressWarnings("rawtypes")
+	private Object getStringExample(Schema stringProperty) {
+		List enums = stringProperty.getEnum();
 		if (enums != null && !enums.isEmpty()) {
 			return enums.get(0);
 		} else if ("date-time".equalsIgnoreCase(stringProperty.getFormat())) {
-			return getConfiguredExample(false, ExampleValues::getDateTime, "");
+			return getConfiguredExample(false, ExampleValues::getDateTime, new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()));
 		}
 		return getConfiguredExample(false, ExampleValues::getString, "");
 	}
@@ -924,8 +929,9 @@ public class SoapUIProject {
 		return schema;
 	}
 
+	private static final int MAX_ALLOF_DEPTH = 20;
+
 	/**
-	 * Merge every allOf member into a single object schema (properties/required of every member)
 	 * @param allOf list of member schemas to merge
 	 * @param refResolver instance of RefResolver
 	 * @return merged object schema
@@ -935,8 +941,31 @@ public class SoapUIProject {
 		ObjectSchema merged = new ObjectSchema();
 		Map<String, Schema> mergedProperties = new HashMap<>();
 		List<String> mergedRequired = new ArrayList<>();
+		collectAllOfMembers(allOf, refResolver, mergedProperties, mergedRequired, 0);
+		merged.setProperties(mergedProperties);
+		merged.setRequired(mergedRequired);
+		return merged;
+	}
+
+	/**
+	 * @param allOf list of member schemas to merge
+	 * @param refResolver instance of RefResolver
+	 * @param mergedProperties accumulator for merged properties
+	 * @param mergedRequired accumulator for merged required property names
+	 * @param depth current allOf nesting depth
+	 */
+	@SuppressWarnings("rawtypes")
+	private void collectAllOfMembers(List<Schema> allOf, RefResolver refResolver, Map<String, Schema> mergedProperties, List<String> mergedRequired, int depth) {
+		if (depth > MAX_ALLOF_DEPTH) {
+			log.warn("allOf nesting exceeded {} levels; deeper members were not merged", MAX_ALLOF_DEPTH);
+			return;
+		}
 		for (Schema member : allOf) {
 			Schema resolvedMember = refResolver.resolveSchema(member);
+			List<Schema> nestedAllOf = resolvedMember.getAllOf();
+			if (nestedAllOf != null && !nestedAllOf.isEmpty()) {
+				collectAllOfMembers(nestedAllOf, refResolver, mergedProperties, mergedRequired, depth + 1);
+			}
 			if (resolvedMember.getProperties() != null) {
 				mergedProperties.putAll(resolvedMember.getProperties());
 			}
@@ -944,9 +973,6 @@ public class SoapUIProject {
 				mergedRequired.addAll(resolvedMember.getRequired());
 			}
 		}
-		merged.setProperties(mergedProperties);
-		merged.setRequired(mergedRequired);
-		return merged;
 	}
 
 	/**
@@ -1780,7 +1806,7 @@ public class SoapUIProject {
 			definition.put("type", "number");
 		} else if (schema instanceof BooleanSchema) {
 			definition.put("type", "boolean");
-		} else if (schema instanceof StringSchema || schema instanceof DateSchema) {
+		} else if (schema instanceof StringSchema || schema instanceof DateSchema || "string".equals(schema.getType())) {
 			definition.put("type", "string");
 		} else {
 			definition.put("type", "object");

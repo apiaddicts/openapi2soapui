@@ -97,7 +97,7 @@ paths:
           - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
           - minimalEndpoints: Boolean flag. When false (default), generates one CaseErrorRequired{Field} test case per required body property and required query parameter; when true, collapses this to at most one
           - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
-          - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies. allOf is always merged regardless of this flag
+          - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies; when false (the default), a oneOf/anyOf property is rendered as a single empty value instead of being expanded. allOf is always merged regardless of this flag
           - validateSchema: Boolean flag; when true (default), adds a response-schema assertion to every test case in addition to its status-code assertion; when false, only the status-code assertion is added
           - schemaIsInline: Boolean flag. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
           - schemaPrettyPrint: Boolean flag. When true (default), the response JSON Schema is pretty-printed (indented); when false, it is serialized compactly with no extra whitespace
@@ -513,7 +513,7 @@ components:
           example: false
         generateOneOfAnyOf:
           type: boolean
-          description: If true, resolves oneOf/anyOf schemas to their first candidate schema when generating the example request body. allOf schemas are always merged into a single object regardless of this flag.
+          description: If true, resolves oneOf/anyOf schemas to their first candidate schema when generating the example request body. When false (the default), a oneOf/anyOf property is rendered as a single empty value instead of being expanded into subfields. allOf schemas are always merged into a single object regardless of this flag.
           example: false
         validateSchema:
           type: boolean
@@ -551,7 +551,7 @@ components:
           $ref: '#/components/schemas/Examples'
     Examples:
       type: object
-      description: Custom example values used when generating request body properties and body-property/query-parameter test values. Any field not provided falls back to the tool's internal default. "successful" values are used for valid request bodies and valid query parameter test cases; "wrong" values are used for the invalid body-property and query-parameter test cases generated when minimalEndpoints is false.
+      description: Custom example values used when generating request body properties and body-property/query-parameter test values. Any field not provided falls back to the tool's internal default. "successful" values are used for valid request bodies and valid query parameter test cases; "wrong" values are used for the invalid body-property and query-parameter test cases generated when minimalEndpoints is false. These values only substitute scalar leaf values (string/number/boolean/date/dateTime and array/object literals); they do not expand or otherwise affect oneOf/anyOf/allOf composition — use generateOneOfAnyOf to control oneOf/anyOf expansion.
       properties:
         successful:
           $ref: '#/components/schemas/ExampleValues'

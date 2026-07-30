@@ -160,4 +160,46 @@ class IsInlineTest {
 		assertEquals("", soapUIProject.getProject().getPropertyValue("body1_tags_item_label"));
 		assertEquals("", soapUIProject.getProject().getPropertyValue("body2_name"));
 	}
+
+	private static final String DATE_TIME_BODY_SPEC = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /events:",
+			"    post:",
+			"      operationId: createEvent",
+			"      requestBody:",
+			"        content:",
+			"          application/json:",
+			"            schema:",
+			"              type: object",
+			"              properties:",
+			"                createdAt:",
+			"                  type: string",
+			"                  format: date-time",
+			"      responses:",
+			"        '200':",
+			"          description: OK"
+	);
+
+	@Test
+	void isInlineTrue_appliesConfiguredDateTimeExample_forDateTimeField() throws Exception {
+		SwaggerParseResult result = new OpenAPIV3Parser().readContents(DATE_TIME_BODY_SPEC, null, null);
+		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
+		OpenAPI openAPI = result.getOpenAPI();
+
+		ExampleValues successful = new ExampleValues();
+		successful.setDateTime("2030-01-01T10:00:00");
+		ExamplesConfig examples = new ExamplesConfig();
+		examples.setSuccessful(successful);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, true, false, false, false, true, true, examples);
+		String compact = decodeAndCompact(soapUIProject.getFileContent());
+
+		assertTrue(compact.contains("\"createdAt\":\"2030-01-01T10:00:00\""),
+				"date-time body field should use the configured examples.successful.dateTime value: " + compact);
+	}
 }
