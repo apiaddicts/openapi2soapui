@@ -129,6 +129,45 @@ class ServiceApiConventionCompositionTest {
 			"          description: Bad Request"
 	);
 
+	private static final String SPEC_WITH_NESTED_ALLOF = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /items:",
+			"    post:",
+			"      operationId: createItem",
+			"      requestBody:",
+			"        content:",
+			"          application/json:",
+			"            schema:",
+			"              type: object",
+			"              properties:",
+			"                metadata:",
+			"                  allOf:",
+			"                    - $ref: '#/components/schemas/Base'",
+			"                    - type: object",
+			"                      properties:",
+			"                        version:",
+			"                          type: integer",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"components:",
+			"  schemas:",
+			"    Base:",
+			"      allOf:",
+			"        - type: object",
+			"          properties:",
+			"            source:",
+			"              type: string",
+			"        - type: object",
+			"          properties:",
+			"            region:",
+			"              type: string"
+	);
+
 	private OpenAPI parseSpec(String yaml) {
 		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
 		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
@@ -308,6 +347,19 @@ class ServiceApiConventionCompositionTest {
 		assertTrue(xml.contains("GET_CaseCustom"), "testCaseNames must generate an extra named copy of CaseOkAllProperties: " + xml);
 		assertTrue(xml.contains("GET_CaseOkAllProperties"), xml);
 		assertTrue(xml.contains("GET_CaseOkRequiredProperties"), xml);
+	}
+
+	@Test
+	void allOf_flattensMembersNestedInsideAnotherAllOf() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_NESTED_ALLOF);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, true, false, false, false, null, null, null);
+		String xml = decode(soapUIProject.getFileContent());
+
+		assertTrue(xml.contains("\"version\""), "Direct allOf member field must be present: " + xml);
+		assertTrue(xml.contains("\"source\""), "Field from an allOf nested inside an allOf member must be merged: " + xml);
+		assertTrue(xml.contains("\"region\""), "All fields from an allOf nested inside an allOf member must be merged: " + xml);
 	}
 
 	@Test

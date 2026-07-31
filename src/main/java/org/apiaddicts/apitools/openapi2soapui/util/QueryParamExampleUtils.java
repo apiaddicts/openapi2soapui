@@ -21,6 +21,7 @@ public final class QueryParamExampleUtils {
 		// Intentional blank
 	}
 
+	private static final String STRING_TYPE = "string";
 	private static final String DATE_TIME_FORMAT = "date-time";
 	private static final String EMAIL_FORMAT = "email";
 	private static final String URI_FORMAT = "uri";
@@ -36,7 +37,7 @@ public final class QueryParamExampleUtils {
 		if (schema instanceof DateSchema) return formatDateExample((DateSchema) schema, configuredOrDefault(successfulExamples, ExampleValues::getDate, "2024-01-01"));
 		if (schema.getExample() != null) return schema.getExample().toString();
 		if (schema.getEnum() != null && !schema.getEnum().isEmpty()) return schema.getEnum().get(0).toString();
-		if (schema instanceof StringSchema) return validStringValue((StringSchema) schema, successfulExamples);
+		if (schema instanceof StringSchema || STRING_TYPE.equals(schema.getType())) return validStringValue(schema, successfulExamples);
 		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return validNumberValue(successfulExamples);
 		if (schema instanceof BooleanSchema) return validBooleanValue(successfulExamples);
 		if (schema instanceof ArraySchema) return configuredOrDefault(successfulExamples, ExampleValues::getArray, "[]");
@@ -56,8 +57,8 @@ public final class QueryParamExampleUtils {
 
 	public static String invalidValue(Schema<?> schema, ExampleValues wrongExamples) {
 		if (schema == null) return "badvalue";
-		if (schema instanceof StringSchema) return invalidString((StringSchema) schema, wrongExamples);
 		if (schema instanceof DateSchema) return invalidDate((DateSchema) schema, wrongExamples);
+		if (schema instanceof StringSchema || STRING_TYPE.equals(schema.getType())) return invalidString(schema, wrongExamples);
 		if (schema instanceof IntegerSchema || schema instanceof NumberSchema) return invalidNumber(schema, wrongExamples);
 		if (schema instanceof BooleanSchema) return configuredOrDefault(wrongExamples, v -> v.getBooleanValue() != null ? v.getBooleanValue().toString() : null, "badboolean");
 		if (schema instanceof ArraySchema) return configuredOrDefault(wrongExamples, ExampleValues::getArray, "badarray");
@@ -71,7 +72,7 @@ public final class QueryParamExampleUtils {
 		return configured != null ? configured : defaultValue;
 	}
 
-	private static String validStringValue(StringSchema schema, ExampleValues successfulExamples) {
+	private static String validStringValue(Schema<?> schema, ExampleValues successfulExamples) {
 		String format = schema.getFormat();
 		if (DATE_TIME_FORMAT.equalsIgnoreCase(format)) return configuredOrDefault(successfulExamples, ExampleValues::getDateTime, "2024-01-01T00:00:00Z");
 		if (EMAIL_FORMAT.equalsIgnoreCase(format)) return "user@example.com";
@@ -85,7 +86,7 @@ public final class QueryParamExampleUtils {
 		return configuredOrDefault(successfulExamples, ExampleValues::getString, "string");
 	}
 
-	private static String invalidString(StringSchema schema, ExampleValues wrongExamples) {
+	private static String invalidString(Schema<?> schema, ExampleValues wrongExamples) {
 		String format = schema.getFormat();
 		if (DATE_TIME_FORMAT.equalsIgnoreCase(format)) return invalidDateTime(schema, wrongExamples);
 		if (EMAIL_FORMAT.equalsIgnoreCase(format)) return "not-an-email";
@@ -100,7 +101,7 @@ public final class QueryParamExampleUtils {
 		return configuredOrDefault(wrongExamples, ExampleValues::getString, "badstring");
 	}
 
-	private static String invalidDateTime(StringSchema schema, ExampleValues wrongExamples) {
+	private static String invalidDateTime(Schema<?> schema, ExampleValues wrongExamples) {
 		Object example = schema.getExample();
 		if (example == null && wrongExamples != null && wrongExamples.getDateTime() != null) {
 			return wrongExamples.getDateTime();

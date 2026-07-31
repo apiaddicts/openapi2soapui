@@ -10,10 +10,13 @@ import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.DateSchema;
+import io.swagger.v3.oas.models.media.DateTimeSchema;
+import io.swagger.v3.oas.models.media.EmailSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.NumberSchema;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.StringSchema;
+import io.swagger.v3.oas.models.media.UUIDSchema;
 
 import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
 
@@ -320,5 +323,49 @@ class QueryParamExampleUtilsTest {
 		StringSchema schema = new StringSchema();
 		schema.setFormat("date-time");
 		assertEquals("2020-40-40T00:00:00", QueryParamExampleUtils.invalidValue(schema, wrong));
+	}
+
+	@Test
+	void validValue_returnsIsoDateTime_forDateTimeSchemaSubtype() {
+		assertEquals("2024-01-01T00:00:00Z", QueryParamExampleUtils.validValue(new DateTimeSchema(), null));
+	}
+
+	@Test
+	void validValue_usesConfiguredSuccessfulDateTime_forDateTimeSchemaSubtype() {
+		ExampleValues successful = new ExampleValues();
+		successful.setDateTime("2020-01-01T23:59:59");
+		assertEquals("2020-01-01T23:59:59", QueryParamExampleUtils.validValue(new DateTimeSchema(), successful));
+	}
+
+	@Test
+	void invalidValue_setsInvalidMonth_forDateTimeSchemaSubtype() {
+		assertEquals("2024-50-01T00:00:00Z", QueryParamExampleUtils.invalidValue(new DateTimeSchema(), null));
+	}
+
+	@Test
+	void invalidValue_usesConfiguredWrongDateTime_forDateTimeSchemaSubtype() {
+		ExampleValues wrong = new ExampleValues();
+		wrong.setDateTime("2020-40-40T00:00:00");
+		assertEquals("2020-40-40T00:00:00", QueryParamExampleUtils.invalidValue(new DateTimeSchema(), wrong));
+	}
+
+	@Test
+	void validValue_returnsRealisticValue_forEmailSchemaSubtype() {
+		assertEquals("user@example.com", QueryParamExampleUtils.validValue(new EmailSchema(), null));
+	}
+
+	@Test
+	void invalidValue_hasNoAtSign_forEmailSchemaSubtype() {
+		assertTrue(!QueryParamExampleUtils.invalidValue(new EmailSchema(), null).contains("@"));
+	}
+
+	@Test
+	void validValue_returnsRealisticValue_forUuidSchemaSubtype() {
+		assertEquals("3fa85f64-5717-4562-b3fc-2c963f66afa6", QueryParamExampleUtils.validValue(new UUIDSchema(), null));
+	}
+
+	@Test
+	void invalidValue_isNotUuidShaped_forUuidSchemaSubtype() {
+		assertEquals("not-a-valid-uuid", QueryParamExampleUtils.invalidValue(new UUIDSchema(), null));
 	}
 }

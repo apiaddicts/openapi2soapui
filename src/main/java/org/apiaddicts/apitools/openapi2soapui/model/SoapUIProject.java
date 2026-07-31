@@ -97,6 +97,7 @@ import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.DateSchema;
+import io.swagger.v3.oas.models.media.DateTimeSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.NumberSchema;
@@ -841,24 +842,28 @@ public class SoapUIProject {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getBooleanValue, true));
 		} else if (property instanceof DateSchema) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date())));
-		} else if (property instanceof StringSchema) {
-			return registerBodyValue(path, getStringExample((StringSchema) property));
+		} else if (property instanceof DateTimeSchema) {
+			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDateTime, new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date())));
+		} else if (property instanceof StringSchema || STRING_TYPE.equals(property.getType())) {
+			return registerBodyValue(path, getStringExample(property));
 		}
 		return registerBodyValue(path, "");
 	}
 
 	/**
-	 * Get example for a String schema, honoring enum values and the date-time format before falling back
-	 * to a configured/default string
-	 * @param stringProperty String Schema
+	 * Get example for a string-typed schema (StringSchema or any string format subtype such as
+	 * EmailSchema/UUIDSchema/PasswordSchema/ByteArraySchema/BinarySchema), honoring enum values and the
+	 * date-time format before falling back to a configured/default string.
+	 * @param stringProperty string-typed Schema
 	 * @return example value
 	 */
-	private Object getStringExample(StringSchema stringProperty) {
-		List<String> enums = stringProperty.getEnum();
+	@SuppressWarnings("rawtypes")
+	private Object getStringExample(Schema stringProperty) {
+		List enums = stringProperty.getEnum();
 		if (enums != null && !enums.isEmpty()) {
 			return enums.get(0);
 		} else if ("date-time".equalsIgnoreCase(stringProperty.getFormat())) {
-			return getConfiguredExample(false, ExampleValues::getDateTime, "");
+			return getConfiguredExample(false, ExampleValues::getDateTime, new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").format(new Date()));
 		}
 		return getConfiguredExample(false, ExampleValues::getString, "");
 	}
@@ -924,8 +929,11 @@ public class SoapUIProject {
 		return schema;
 	}
 
+	private static final String STRING_TYPE = "string";
+
+	private static final int MAX_ALLOF_DEPTH = 20;
+
 	/**
-	 * Merge every allOf member into a single object schema (properties/required of every member)
 	 * @param allOf list of member schemas to merge
 	 * @param refResolver instance of RefResolver
 	 * @return merged object schema
@@ -935,8 +943,31 @@ public class SoapUIProject {
 		ObjectSchema merged = new ObjectSchema();
 		Map<String, Schema> mergedProperties = new HashMap<>();
 		List<String> mergedRequired = new ArrayList<>();
+		collectAllOfMembers(allOf, refResolver, mergedProperties, mergedRequired, 0);
+		merged.setProperties(mergedProperties);
+		merged.setRequired(mergedRequired);
+		return merged;
+	}
+
+	/**
+	 * @param allOf list of member schemas to merge
+	 * @param refResolver instance of RefResolver
+	 * @param mergedProperties accumulator for merged properties
+	 * @param mergedRequired accumulator for merged required property names
+	 * @param depth current allOf nesting depth
+	 */
+	@SuppressWarnings("rawtypes")
+	private void collectAllOfMembers(List<Schema> allOf, RefResolver refResolver, Map<String, Schema> mergedProperties, List<String> mergedRequired, int depth) {
+		if (depth > MAX_ALLOF_DEPTH) {
+			log.warn("allOf nesting exceeded {} levels; deeper members were not merged", MAX_ALLOF_DEPTH);
+			return;
+		}
 		for (Schema member : allOf) {
 			Schema resolvedMember = refResolver.resolveSchema(member);
+			List<Schema> nestedAllOf = resolvedMember.getAllOf();
+			if (nestedAllOf != null && !nestedAllOf.isEmpty()) {
+				collectAllOfMembers(nestedAllOf, refResolver, mergedProperties, mergedRequired, depth + 1);
+			}
 			if (resolvedMember.getProperties() != null) {
 				mergedProperties.putAll(resolvedMember.getProperties());
 			}
@@ -944,9 +975,6 @@ public class SoapUIProject {
 				mergedRequired.addAll(resolvedMember.getRequired());
 			}
 		}
-		merged.setProperties(mergedProperties);
-		merged.setRequired(mergedRequired);
-		return merged;
 	}
 
 	/**
@@ -1742,31 +1770,49 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private Object buildJsonSchemaDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		if (schema == null) return null;
-		String ref = schema.get$ref();
-		if (ref != null) {
-			if (refsInPath.contains(ref)) {
-				return new LinkedHashMap<>();
-			}
-			Schema target = resolveComponentSchema(ref);
-			if (target == null) return new LinkedHashMap<>();
-			Set<String> nextRefsInPath = new HashSet<>(refsInPath);
-			nextRefsInPath.add(ref);
-			return buildJsonSchemaDefinition(target, refResolver, nextRefsInPath);
+		if (schema.get$ref() != null) {
+			return buildRefDefinition(schema.get$ref(), refResolver, refsInPath);
 		}
 		boolean nullable = Boolean.TRUE.equals(schema.getNullable());
+		Object composed = buildComposedDefinition(schema, refResolver, refsInPath);
+		if (composed != null) {
+			return applyNullable(composed, nullable);
+		}
+		return applyNullable(buildLeafDefinition(schema, refResolver, refsInPath), nullable);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildRefDefinition(String ref, RefResolver refResolver, Set<String> refsInPath) {
+		if (refsInPath.contains(ref)) {
+			return new LinkedHashMap<>();
+		}
+		Schema target = resolveComponentSchema(ref);
+		if (target == null) return new LinkedHashMap<>();
+		Set<String> nextRefsInPath = new HashSet<>(refsInPath);
+		nextRefsInPath.add(ref);
+		return buildJsonSchemaDefinition(target, refResolver, nextRefsInPath);
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildComposedDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		if (schema.getAllOf() != null && !schema.getAllOf().isEmpty()) {
-			return applyNullable(buildJsonSchemaDefinition(mergeAllOf(schema.getAllOf(), refResolver), refResolver, refsInPath), nullable);
+			return buildJsonSchemaDefinition(mergeAllOf(schema.getAllOf(), refResolver), refResolver, refsInPath);
 		}
 		List<Schema> alternatives = (schema.getOneOf() != null && !schema.getOneOf().isEmpty()) ? schema.getOneOf() : schema.getAnyOf();
-		if (alternatives != null && !alternatives.isEmpty()) {
-			Map<String, Object> definition = new LinkedHashMap<>();
-			List<Object> anyOf = new ArrayList<>();
-			for (Schema alternative : alternatives) {
-				anyOf.add(buildJsonSchemaDefinition(alternative, refResolver, refsInPath));
-			}
-			definition.put("anyOf", anyOf);
-			return applyNullable(definition, nullable);
+		if (alternatives == null || alternatives.isEmpty()) {
+			return null;
 		}
+		Map<String, Object> definition = new LinkedHashMap<>();
+		List<Object> anyOf = new ArrayList<>();
+		for (Schema alternative : alternatives) {
+			anyOf.add(buildJsonSchemaDefinition(alternative, refResolver, refsInPath));
+		}
+		definition.put("anyOf", anyOf);
+		return definition;
+	}
+
+	@SuppressWarnings("rawtypes")
+	private Object buildLeafDefinition(Schema schema, RefResolver refResolver, Set<String> refsInPath) {
 		Map<String, Object> definition = new LinkedHashMap<>();
 		if (schema.getEnum() != null && !schema.getEnum().isEmpty()) {
 			definition.put("enum", schema.getEnum());
@@ -1780,26 +1826,36 @@ public class SoapUIProject {
 			definition.put("type", "number");
 		} else if (schema instanceof BooleanSchema) {
 			definition.put("type", "boolean");
-		} else if (schema instanceof StringSchema || schema instanceof DateSchema) {
-			definition.put("type", "string");
+		} else if (isStringType(schema)) {
+			definition.put("type", STRING_TYPE);
 		} else {
-			definition.put("type", "object");
-			Map<String, Object> properties = new LinkedHashMap<>();
-			if (schema.getProperties() != null) {
-				Map<String, Schema> schemaProperties = schema.getProperties();
-				schemaProperties.forEach((propertyName, propertySchema) ->
-						properties.put(propertyName, buildJsonSchemaDefinition(propertySchema, refResolver, refsInPath)));
-			}
-			definition.put("properties", properties);
-			if (schema.getRequired() != null) {
-				definition.put("required", schema.getRequired());
-			}
-			if (Boolean.FALSE.equals(schema.getAdditionalProperties())) {
-				definition.put("additionalProperties", false);
-			}
+			buildObjectDefinition(schema, definition, refResolver, refsInPath);
 		}
 		addCommonConstraints(schema, definition);
-		return applyNullable(definition, nullable);
+		return definition;
+	}
+
+	@SuppressWarnings("rawtypes")
+	private boolean isStringType(Schema schema) {
+		return schema instanceof StringSchema || schema instanceof DateSchema || STRING_TYPE.equals(schema.getType());
+	}
+
+	@SuppressWarnings("rawtypes")
+	private void buildObjectDefinition(Schema schema, Map<String, Object> definition, RefResolver refResolver, Set<String> refsInPath) {
+		definition.put("type", "object");
+		Map<String, Object> properties = new LinkedHashMap<>();
+		if (schema.getProperties() != null) {
+			Map<String, Schema> schemaProperties = schema.getProperties();
+			schemaProperties.forEach((propertyName, propertySchema) ->
+					properties.put(propertyName, buildJsonSchemaDefinition(propertySchema, refResolver, refsInPath)));
+		}
+		definition.put("properties", properties);
+		if (schema.getRequired() != null) {
+			definition.put("required", schema.getRequired());
+		}
+		if (Boolean.FALSE.equals(schema.getAdditionalProperties())) {
+			definition.put("additionalProperties", false);
+		}
 	}
 
 	/**
