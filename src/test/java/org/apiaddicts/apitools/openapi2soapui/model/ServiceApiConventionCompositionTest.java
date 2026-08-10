@@ -13,6 +13,8 @@ import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import org.apiaddicts.apitools.openapi2soapui.request.AccessTokenPosition;
 import org.apiaddicts.apitools.openapi2soapui.request.CustomAuthorizationRequest;
+import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
+import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile;
 import org.junit.jupiter.api.Test;
@@ -166,6 +168,82 @@ class ServiceApiConventionCompositionTest {
 			"          properties:",
 			"            region:",
 			"              type: string"
+	);
+
+	private static final String SPEC_WITH_REF_ALLOF_METADATA = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /users:",
+			"    post:",
+			"      operationId: createUser",
+			"      requestBody:",
+			"        required: true",
+			"        content:",
+			"          application/json:",
+			"            schema:",
+			"              type: object",
+			"              required: [name, metadata]",
+			"              properties:",
+			"                name:",
+			"                  type: string",
+			"                metadata:",
+			"                  $ref: '#/components/schemas/Metadata'",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"components:",
+			"  schemas:",
+			"    Metadata:",
+			"      allOf:",
+			"        - $ref: '#/components/schemas/MetaSource'",
+			"        - $ref: '#/components/schemas/MetaPriority'",
+			"    MetaSource:",
+			"      type: object",
+			"      properties:",
+			"        source:",
+			"          type: string",
+			"    MetaPriority:",
+			"      type: object",
+			"      properties:",
+			"        priority:",
+			"          type: integer"
+	);
+
+	private static final String SPEC_WITH_DATETIME_BODY_AND_QUERY = String.join("\n",
+			"openapi: 3.0.0",
+			"info:",
+			"  title: Test",
+			"  version: '1.0'",
+			"paths:",
+			"  /events:",
+			"    post:",
+			"      operationId: createEvent",
+			"      parameters:",
+			"        - name: scheduledAt",
+			"          in: query",
+			"          required: true",
+			"          schema:",
+			"            type: string",
+			"            format: date-time",
+			"      requestBody:",
+			"        required: true",
+			"        content:",
+			"          application/json:",
+			"            schema:",
+			"              type: object",
+			"              required: [createdAt]",
+			"              properties:",
+			"                createdAt:",
+			"                  type: string",
+			"                  format: date-time",
+			"      responses:",
+			"        '200':",
+			"          description: OK",
+			"        '400':",
+			"          description: Bad Request"
 	);
 
 	private OpenAPI parseSpec(String yaml) {
@@ -347,6 +425,50 @@ class ServiceApiConventionCompositionTest {
 		assertTrue(xml.contains("GET_CaseCustom"), "testCaseNames must generate an extra named copy of CaseOkAllProperties: " + xml);
 		assertTrue(xml.contains("GET_CaseOkAllProperties"), xml);
 		assertTrue(xml.contains("GET_CaseOkRequiredProperties"), xml);
+	}
+
+	@Test
+	void wrongExamples_areAppliedAsInvalidValueInErrorRequiredCases() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_DATETIME_BODY_AND_QUERY);
+		ExampleValues wrong = new ExampleValues();
+		wrong.setDateTime("2026-50-01T00:00:00");
+		ExamplesConfig examples = new ExamplesConfig();
+		examples.setWrong(wrong);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, examples, null);
+		String xml = decode(soapUIProject.getFileContent());
+
+		assertTrue(xml.contains("2026-50-01T00:00:00"), "examples.wrong.dateTime must appear as the invalid value in the ErrorRequired cases: " + xml);
+		boolean bodyHasInvalid = Arrays.stream(soapUIProject.getProject().getPropertyNames())
+				.anyMatch(n -> "2026-50-01T00:00:00".equals(soapUIProject.getProject().getPropertyValue(n)));
+		assertTrue(bodyHasInvalid, "examples.wrong.dateTime must be applied to the required date-time body field in its ErrorRequired case");
+	}
+
+	@Test
+	void withoutWrongExamples_errorRequiredCasesDoNotForceAnInvalidValue() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_DATETIME_BODY_AND_QUERY);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
+		String xml = decode(soapUIProject.getFileContent());
+
+		assertFalse(xml.contains("2026-50-01T00:00:00"), "without examples.wrong, no forced invalid value should appear: " + xml);
+	}
+
+	@Test
+	void allOf_expandsInEveryGeneratedBody_notOnlyInSchema() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_REF_ALLOF_METADATA);
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
+		soapUIProject.getFileContent();
+
+		String[] names = soapUIProject.getProject().getPropertyNames();
+		boolean collapsed = Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata"));
+		boolean expanded = Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata_source"));
+		assertFalse(collapsed, "metadata (allOf via $ref) must not collapse to a flat placeholder in the body: " + Arrays.toString(names));
+		assertTrue(expanded, "metadata (allOf) must expand into its subfields in the body: " + Arrays.toString(names));
 	}
 
 	@Test

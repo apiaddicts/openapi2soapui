@@ -96,7 +96,7 @@ paths:
           - customAuthorizationsFile: List of custom authorization requests, prepended as a dedicated "authorizations" Test Suite before the per-endpoint Test Suites
           - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
           - minimalEndpoints: Boolean flag. When false (default), generates one CaseErrorRequired{Field} test case per required body property and required query parameter; when true, collapses this to at most one
-          - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers
+          - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. If a custom header named X-Microcks-Response-Name is supplied, its value is preserved in every test case (both Ok* and Error*) and never overwritten
           - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies; when false (the default), a oneOf/anyOf property is rendered as a single empty value instead of being expanded. allOf is always merged regardless of this flag
           - validateSchema: Boolean flag; when true (default), adds a response-schema assertion to every test case in addition to its status-code assertion; when false, only the status-code assertion is added
           - schemaIsInline: Boolean flag. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
@@ -509,7 +509,7 @@ components:
           example: false
         microcksHeaders:
           type: boolean
-          description: If true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined. For the CaseErrorStatusCode{StatusCode}/CaseErrorRequired{Field} test cases, the header is resolved against that specific status's (or "default") response.
+          description: If true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined. For the CaseErrorStatusCode{StatusCode}/CaseErrorRequired{Field} test cases, the header is resolved against that specific status's (or "default") response. If a custom header named X-Microcks-Response-Name is supplied, its value is preserved in every test case (both Ok* and Error*).
           example: false
         generateOneOfAnyOf:
           type: boolean
@@ -551,7 +551,12 @@ components:
           $ref: '#/components/schemas/Examples'
     Examples:
       type: object
-      description: Custom example values used when generating request body properties and body-property/query-parameter test values. Any field not provided falls back to the tool's internal default. "successful" values are used for valid request bodies and valid query parameter test cases; "wrong" values are used for the invalid body-property and query-parameter test cases generated when minimalEndpoints is false. These values only substitute scalar leaf values (string/number/boolean/date/dateTime and array/object literals); they do not expand or otherwise affect oneOf/anyOf/allOf composition — use generateOneOfAnyOf to control oneOf/anyOf expansion.
+      description: >-
+        Custom example values used when generating request body properties and query-parameter values. Any field not provided falls back to the tool's internal default.
+        "successful" values are used for valid request bodies and valid query-parameter values.
+        "wrong" values are used for the negative CaseErrorRequired{Field} cases: when any "wrong" value is configured, the target required field is sent with an invalid value taken from "wrong" (e.g. wrong.dateTime) instead of being omitted (body) or left empty (query parameter); when "wrong" is not configured, those cases keep the default behavior (omit the required body field / empty the required query parameter).
+        These values only substitute scalar leaf values (string/number/boolean/date/dateTime and array/object literals); they do not expand or otherwise affect oneOf/anyOf/allOf composition — use generateOneOfAnyOf to control oneOf/anyOf expansion.
+        String formats without a dedicated key (email, uuid, password, byte, binary) use the "string" value in request bodies; query parameters additionally emit built-in realistic samples for common formats (e.g. user@example.com for email), which take precedence over "string".
       properties:
         successful:
           $ref: '#/components/schemas/ExampleValues'
