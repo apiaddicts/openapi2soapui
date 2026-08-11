@@ -3,9 +3,12 @@ package org.apiaddicts.apitools.openapi2soapui.model;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
+import java.util.List;
+
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.parser.OpenAPIV3Parser;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.request.Header;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -121,6 +124,29 @@ class MicrocksHeadersStatusTest {
 		assertTrue(errorRequiredIdBlock.contains("badExample"),
 				"The 400-targeting CaseErrorRequired{Field} variant should use the 400 response's own named example, not the operation's first 2xx: " + errorRequiredIdBlock);
 		assertFalse(errorRequiredIdBlock.contains("successExample"), errorRequiredIdBlock);
+	}
+
+	@Test
+	void customResponseNameHeader_isPreservedInErrorTestCasesNotOnlyOkOnes() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_WITH_400_EXAMPLE);
+
+		Header customHeader = new Header();
+		customHeader.setKey("X-Microcks-Response-Name");
+		customHeader.setValue("custom");
+
+		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, List.of(customHeader), null,
+				false, null, false, true, false, false, false, false, null);
+		String xml = decode(soapUIProject.getFileContent());
+
+		String defaultRequestBlock = requestBlock(xml, "Request 1");
+		assertTrue(defaultRequestBlock.contains("X-Microcks-Response-Name") && defaultRequestBlock.contains("value=\"custom\""),
+				"The OK request should keep the user-supplied custom X-Microcks-Response-Name value: " + defaultRequestBlock);
+		assertFalse(defaultRequestBlock.contains("successExample"), defaultRequestBlock);
+
+		String errorRequiredIdBlock = requestBlock(xml, "ErrorRequiredid");
+		assertTrue(errorRequiredIdBlock.contains("value=\"custom\""),
+				"The 400-targeting CaseErrorRequired{Field} variant should keep the user-supplied custom header value, not overwrite it with the computed status example: " + errorRequiredIdBlock);
+		assertFalse(errorRequiredIdBlock.contains("badExample"), errorRequiredIdBlock);
 	}
 
 	@Test

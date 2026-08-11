@@ -267,6 +267,12 @@ public class SoapUIProject {
 	 * is unaffected
 	 */
 	private String bodyVariantOmitPath;
+	/**
+	 * While building a {METHOD}_CaseErrorRequired{Field} Test Case, the path of the one required scalar
+	 * property to render with an INVALID value (from examples.wrong) instead of omitting it. Only set when
+	 * examples.wrong is configured; null otherwise (the default omit behavior).
+	 */
+	private String bodyVariantWrongPath;
 
 	/**
 	 * Backward-compatible overload; schemaPrettyPrint defaults to true.
@@ -829,6 +835,10 @@ public class SoapUIProject {
 	 */
 	@SuppressWarnings("rawtypes")
 	private Object getExampleForResolvedType(Schema property, RefResolver refResolver, String path) throws JSONException {
+		if (bodyVariantWrongPath != null && bodyVariantWrongPath.equals(path)
+				&& !(property instanceof ObjectSchema) && !(property instanceof ArraySchema)) {
+			return registerBodyValue(path, QueryParamExampleUtils.invalidValue(property, examples != null ? examples.getWrong() : null));
+		}
 		if (property instanceof ObjectSchema) {
 			return iterateProperties(((ObjectSchema) property).getProperties(), refResolver, path);
 		} else if (property instanceof ArraySchema) {
@@ -1321,7 +1331,7 @@ public class SoapUIProject {
 		if (bodySchema != null) {
 			bodyPropertyCounter++;
 			currentBodyTokenTypes = new LinkedHashMap<>();
-			JSONObject body = buildRequiredPropertiesExample(bodySchema, refResolver, "");
+			JSONObject body = buildRequiredPropertiesExample(bodySchema, new RefResolver(openAPI), "");
 			String exampleStr = mapObjectToJsonString(body);
 			exampleStr = stripQuotesAroundNonStringTokens(exampleStr);
 			if (exampleStr != null) {
@@ -1633,9 +1643,14 @@ public class SoapUIProject {
 
 		bodyPropertyCounter++;
 		currentBodyTokenTypes = new LinkedHashMap<>();
-		bodyVariantOmitPath = omitPath;
+		boolean injectWrong = examples != null && examples.getWrong() != null;
+		if (injectWrong) {
+			bodyVariantWrongPath = omitPath;
+		} else {
+			bodyVariantOmitPath = omitPath;
+		}
 		try {
-			JSONObject body = iterateProperties(bodySchema.getProperties(), context.refResolver, "");
+			JSONObject body = iterateProperties(bodySchema.getProperties(), new RefResolver(openAPI), "");
 			String exampleStr = mapObjectToJsonString(body);
 			exampleStr = stripQuotesAroundNonStringTokens(exampleStr);
 			if (exampleStr != null) {
@@ -1643,6 +1658,7 @@ public class SoapUIProject {
 			}
 		} finally {
 			bodyVariantOmitPath = null;
+			bodyVariantWrongPath = null;
 		}
 		applyMicrocksHeaderForStatus(variantRequest, context.operation, assertStatusCode);
 
@@ -1658,7 +1674,11 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private void addErrorRequiredQueryFieldTestCase(ErrorCaseContext context, Parameter param, String assertStatusCode, Schema errorSchema) {
 		RestRequest variantRequest = context.restMethod.cloneRequest(context.baseRequest, SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + param.getName());
-		setRequestParameterValue(variantRequest, param.getName(), "");
+		String errorValue = "";
+		if (examples != null && examples.getWrong() != null && param.getSchema() != null) {
+			errorValue = QueryParamExampleUtils.invalidValue(new RefResolver(openAPI).resolveSchema(param.getSchema()), examples.getWrong());
+		}
+		setRequestParameterValue(variantRequest, param.getName(), errorValue);
 		applyMicrocksHeaderForStatus(variantRequest, context.operation, assertStatusCode);
 
 		String testCaseName = context.method + SERVICE_API_CASE_INFIX + SERVICE_API_CASE_ERROR_REQUIRED_PREFIX + toCaseFieldName(param.getName());
@@ -2240,6 +2260,8 @@ public class SoapUIProject {
 	 * the operation-wide first-2xx-or-default value the Request inherited from setRequestHeaders. Used for
 	 * body-property-variant Test Cases, which have a well-defined target status distinct from the
 	 * operation's success response.
+	 * If the user already supplied a custom X-Microcks-Response-Name header, it is preserved and never
+	 * overwritten (mirroring setRequestHeaders), so a custom value is respected across all Test Cases.
 	 * @param request the Request to update
 	 * @param operation instance of OpenAPI Operation, used to resolve the example name
 	 * @param statusCode literal status code this Request targets
@@ -2250,8 +2272,10 @@ public class SoapUIProject {
 		if (headers != null && !headers.isEmpty()) {
 			headers.forEach(header -> requestHeaders.put(header.getKey(), header.getValue()));
 		}
-		String exampleName = getMicrocksExampleNameForStatus(operation, statusCode);
-		requestHeaders.put(MICROCKS_RESPONSE_NAME_HEADER, exampleName != null ? exampleName : DEFAULT);
+		if (!requestHeaders.containsKey(MICROCKS_RESPONSE_NAME_HEADER)) {
+			String exampleName = getMicrocksExampleNameForStatus(operation, statusCode);
+			requestHeaders.put(MICROCKS_RESPONSE_NAME_HEADER, exampleName != null ? exampleName : DEFAULT);
+		}
 		request.setRequestHeaders(requestHeaders);
 	}
 

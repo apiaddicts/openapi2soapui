@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.0-beta-3]
+
+### Added
+- `examples.wrong` is now applied to the negative `CaseErrorRequired{Field}` cases: when any `wrong` value is configured, the target required field is sent with an invalid value from `wrong`.
+
+### Fixed
+- `allOf`/`$ref` body fields that appear in more than one generated test case no longer collapse to an empty placeholder. Each generated request body now resolves its `$ref`s with a fresh resolver.
+- `microcksHeaders`: a custom header named `X-Microcks-Response-Name` supplied by the user is now preserved in the `CaseErrorStatusCode{StatusCode}`/`CaseErrorRequired{Field}` test cases instead of being overwritten by the computed example name.
+
 ## [2.0.0-beta-2] - 2026-07-30
 
 ### Fixed
