@@ -5,8 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.junit.jupiter.api.Test;
 
 class ServiceApiConventionTest {
@@ -92,9 +91,7 @@ class ServiceApiConventionTest {
 	);
 
 	private OpenAPI parseSpec(String yaml) {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(yaml);
 	}
 
 	private int countOccurrences(String haystack, String needle) {

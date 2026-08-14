@@ -21,8 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import groovy.lang.GroovyShell;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 
 class SchemaIsInlineTest {
 
@@ -127,9 +126,7 @@ class SchemaIsInlineTest {
 	}
 
 	private OpenAPI parseSpec(String yaml) {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(yaml);
 	}
 
 	private String extractScript(String xml) {

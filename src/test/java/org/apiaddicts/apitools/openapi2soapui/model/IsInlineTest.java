@@ -9,8 +9,7 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
 import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 
@@ -41,9 +40,7 @@ class IsInlineTest {
 	);
 
 	private OpenAPI parseSpec() {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(SPEC, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(SPEC);
 	}
 
 	private ExamplesConfig examplesConfig() {
@@ -139,9 +136,7 @@ class IsInlineTest {
 
 	@Test
 	void isInlineFalse_handlesNestedObjectsArraysAndMultipleOperationsWithoutKeyCollisions() throws Exception {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(NESTED_MULTI_OP_SPEC, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		OpenAPI openAPI = result.getOpenAPI();
+		OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(NESTED_MULTI_OP_SPEC);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, true, false, false, false, true, false, null);
@@ -186,9 +181,7 @@ class IsInlineTest {
 
 	@Test
 	void isInlineTrue_appliesConfiguredDateTimeExample_forDateTimeField() throws Exception {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(DATE_TIME_BODY_SPEC, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		OpenAPI openAPI = result.getOpenAPI();
+		OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(DATE_TIME_BODY_SPEC);
 
 		ExampleValues successful = new ExampleValues();
 		successful.setDateTime("2030-01-01T10:00:00");

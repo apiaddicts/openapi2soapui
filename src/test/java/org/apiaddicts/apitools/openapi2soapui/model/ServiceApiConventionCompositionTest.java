@@ -9,14 +9,13 @@ import java.util.List;
 import java.util.Set;
 
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import org.apiaddicts.apitools.openapi2soapui.request.AccessTokenPosition;
 import org.apiaddicts.apitools.openapi2soapui.request.CustomAuthorizationRequest;
 import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
 import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.junit.jupiter.api.Test;
 
 class ServiceApiConventionCompositionTest {
@@ -212,6 +211,124 @@ class ServiceApiConventionCompositionTest {
 			"          type: integer"
 	);
 
+	private static final String SPEC_USER_ALLOF_ONEOF_AND_INLINE_OBJECT = """
+            openapi: 3.0.1
+            info:
+              title: Users
+              description: Spec de prueba para verificacion de parametros openapi2soapui
+              version: 0.1.9
+            servers:
+              - url: https://api.example.com/v1
+                description: Main (production) server
+              - url: https://dev-api.example.com/v1
+                description: Internal dev server for testing
+            paths:
+              /users:
+                post:
+                  operationId: createUser
+                  summary: Create user
+                  requestBody:
+                    required: true
+                    content:
+                      application/json:
+                        schema:
+                          $ref: '#/components/schemas/User'
+                  responses:
+                    '201':
+                      description: Created
+                      content:
+                        application/json:
+                          schema:
+                            $ref: '#/components/schemas/User'
+                    '400':
+                      description: Bad Request
+                      content:
+                        application/json:
+                          schema:
+                            $ref: '#/components/schemas/Error'
+                    '401':
+                      description: Unauthorized
+                      content:
+                        application/json:
+                          schema:
+                            $ref: '#/components/schemas/Error'
+            components:
+              schemas:
+                User:
+                  type: object
+                  required: [name, address]
+                  properties:
+                    name:
+                      type: string
+                    age:
+                      type: number
+                    active:
+                      type: boolean
+                    birthDate:
+                      type: string
+                      format: date
+                    createdAt:
+                      type: string
+                      format: date-time
+                    contactEmailBody:
+                      type: string
+                      format: email
+                    trackingId:
+                      type: string
+                      format: uuid
+                    address:
+                      type: object
+                      required: [street, city]
+                      properties:
+                        street:
+                          type: string
+                        city:
+                          type: string
+                    tags:
+                      type: array
+                      items:
+                        type: string
+                    profile:
+                      oneOf:
+                        - $ref: '#/components/schemas/AdminProfile'
+                        - $ref: '#/components/schemas/RegularProfile'
+                    metadata:
+                      allOf:
+                        - $ref: '#/components/schemas/BaseMetadata'
+                        - $ref: '#/components/schemas/ExtraMetadata'
+                AdminProfile:
+                  type: object
+                  properties:
+                    role:
+                      type: string
+                      enum: [admin]
+                    permissions:
+                      type: array
+                      items:
+                        type: string
+                RegularProfile:
+                  type: object
+                  properties:
+                    role:
+                      type: string
+                      enum: [regular]
+                BaseMetadata:
+                  type: object
+                  properties:
+                    source:
+                      type: string
+                ExtraMetadata:
+                  type: object
+                  properties:
+                    priority:
+                      type: integer
+                Error:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+            """;
+
 	private static final String SPEC_WITH_DATETIME_BODY_AND_QUERY = String.join("\n",
 			"openapi: 3.0.0",
 			"info:",
@@ -247,9 +364,7 @@ class ServiceApiConventionCompositionTest {
 	);
 
 	private OpenAPI parseSpec(String yaml) {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(yaml);
 	}
 
 	private String decode(String xml) {
@@ -482,6 +597,44 @@ class ServiceApiConventionCompositionTest {
 		assertTrue(xml.contains("\"version\""), "Direct allOf member field must be present: " + xml);
 		assertTrue(xml.contains("\"source\""), "Field from an allOf nested inside an allOf member must be merged: " + xml);
 		assertTrue(xml.contains("\"region\""), "All fields from an allOf nested inside an allOf member must be merged: " + xml);
+	}
+
+	@Test
+	void allOfObjectAndInlineObjectExpand_oneOfStaysFlatByDefault() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_USER_ALLOF_ONEOF_AND_INLINE_OBJECT);
+
+		SoapUIProject soapUIProject = new SoapUIProject("Users", openAPI, null, null, null,
+				false, null, false, false, false, false, false, false, false, false, false, null, null, null);
+		soapUIProject.getFileContent();
+
+		String[] names = soapUIProject.getProject().getPropertyNames();
+		assertFalse(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata")),
+				"metadata (allOf) must not collapse to a flat placeholder: " + Arrays.toString(names));
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata_source")),
+				"metadata.source (from BaseMetadata via allOf) must be present: " + Arrays.toString(names));
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata_priority")),
+				"metadata.priority (from ExtraMetadata via allOf) must be present: " + Arrays.toString(names));
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_address_street")),
+				"address.street must be present: " + Arrays.toString(names));
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_address_city")),
+				"address.city must be present: " + Arrays.toString(names));
+		assertFalse(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_profile_role")),
+				"profile (oneOf) must NOT expand when generateOneOfAnyOf is false: " + Arrays.toString(names));
+	}
+
+	@Test
+	void oneOfExpandsToFirstCandidateWhenGenerateOneOfAnyOfEnabled() throws Exception {
+		OpenAPI openAPI = parseSpec(SPEC_USER_ALLOF_ONEOF_AND_INLINE_OBJECT);
+
+		SoapUIProject soapUIProject = new SoapUIProject("Users", openAPI, null, null, null,
+				false, null, false, false, true, false, false, false, false, false, false, null, null, null);
+		soapUIProject.getFileContent();
+
+		String[] names = soapUIProject.getProject().getPropertyNames();
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_profile_role")),
+				"profile (oneOf) must expand to its first candidate when generateOneOfAnyOf is true: " + Arrays.toString(names));
+		assertTrue(Arrays.stream(names).anyMatch(n -> n.matches("body\\d+_metadata_source")),
+				"metadata.source must still be present: " + Arrays.toString(names));
 	}
 
 	@Test
