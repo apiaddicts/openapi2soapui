@@ -11,8 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import groovy.lang.GroovyShell;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 
 /**
  * Throwaway end-to-end verification for the validateSchema Groovy script: builds a real SoapUIProject,
@@ -57,9 +56,7 @@ class ValidateSchemaScriptTest {
 
 	@Test
 	void generatedScriptIsValidGroovyAndValidatesCorrectly() throws Exception {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(SPEC, null, null);
-		OpenAPI openAPI = result.getOpenAPI();
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
+		OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(SPEC);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, true, false, false, true, true, false, null);
@@ -142,9 +139,7 @@ class ValidateSchemaScriptTest {
 
 	@Test
 	void operationWithSelectQueryParam_skipsSchemaValidationAssertion() throws Exception {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(SELECT_PARAM_SPEC, null, null);
-		OpenAPI openAPI = result.getOpenAPI();
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
+		OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(SELECT_PARAM_SPEC);
 
 		SoapUIProject soapUIProject = new SoapUIProject("TestApi", openAPI, null, null, null,
 				false, null, true, false, false, true, true, false, null);

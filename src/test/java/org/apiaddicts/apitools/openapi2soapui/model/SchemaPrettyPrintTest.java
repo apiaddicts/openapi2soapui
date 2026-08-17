@@ -17,8 +17,7 @@ import org.junit.jupiter.api.Test;
 
 import groovy.lang.GroovyShell;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.apiaddicts.apitools.openapi2soapui.request.ExampleValues;
 import org.apiaddicts.apitools.openapi2soapui.request.ExamplesConfig;
 
@@ -208,9 +207,7 @@ class SchemaPrettyPrintTest {
 	);
 
 	private OpenAPI parseSpec(String spec) {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(spec, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(spec);
 	}
 
 	private ExamplesConfig examplesConfig() {

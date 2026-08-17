@@ -836,19 +836,20 @@ public class SoapUIProject {
 	@SuppressWarnings("rawtypes")
 	private Object getExampleForResolvedType(Schema property, RefResolver refResolver, String path) throws JSONException {
 		if (bodyVariantWrongPath != null && bodyVariantWrongPath.equals(path)
-				&& !(property instanceof ObjectSchema) && !(property instanceof ArraySchema)) {
+				&& !isObjectSchema(property) && !isArraySchema(property)) {
 			return registerBodyValue(path, QueryParamExampleUtils.invalidValue(property, examples != null ? examples.getWrong() : null));
 		}
-		if (property instanceof ObjectSchema) {
-			return iterateProperties(((ObjectSchema) property).getProperties(), refResolver, path);
-		} else if (property instanceof ArraySchema) {
+		if (isObjectSchema(property)) {
+			return iterateProperties(property.getProperties(), refResolver, path);
+		} else if (isArraySchema(property)) {
 			JSONArray jsonArray = new JSONArray();
-			Schema<?> items = refResolver.resolveSchema(((ArraySchema) property).getItems());
+			Schema<?> items = refResolver.resolveSchema(property.getItems());
 			jsonArray.put(getPropertyExample(items, refResolver, path + ARRAY_ITEM_PATH_SUFFIX));
 			return jsonArray;
-		} else if (property instanceof IntegerSchema || property instanceof NumberSchema) {
+		} else if (property instanceof IntegerSchema || property instanceof NumberSchema
+				|| INTEGER_TYPE.equals(property.getType()) || NUMBER_TYPE.equals(property.getType())) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getNumber, java.math.BigDecimal.ZERO));
-		} else if (property instanceof BooleanSchema) {
+		} else if (property instanceof BooleanSchema || BOOLEAN_TYPE.equals(property.getType())) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getBooleanValue, true));
 		} else if (property instanceof DateSchema) {
 			return registerBodyValue(path, getConfiguredExample(false, ExampleValues::getDate, new SimpleDateFormat("yyyy-MM-dd").format(new Date())));
@@ -940,6 +941,11 @@ public class SoapUIProject {
 	}
 
 	private static final String STRING_TYPE = "string";
+	private static final String OBJECT_TYPE = "object";
+	private static final String ARRAY_TYPE = "array";
+	private static final String INTEGER_TYPE = "integer";
+	private static final String NUMBER_TYPE = "number";
+	private static final String BOOLEAN_TYPE = "boolean";
 
 	private static final int MAX_ALLOF_DEPTH = 20;
 
@@ -985,6 +991,26 @@ public class SoapUIProject {
 				mergedRequired.addAll(resolvedMember.getRequired());
 			}
 		}
+	}
+
+	/**
+	 * @param s schema to classify
+	 * @return true if the schema represents an object
+	 */
+	@SuppressWarnings("rawtypes")
+	private static boolean isObjectSchema(Schema s) {
+		return s instanceof ObjectSchema
+			|| OBJECT_TYPE.equals(s.getType())
+			|| (s.getProperties() != null && !s.getProperties().isEmpty());
+	}
+
+	/**
+	 * @param s schema to classify
+	 * @return true if the schema represents an array
+	 */
+	@SuppressWarnings("rawtypes")
+	private static boolean isArraySchema(Schema s) {
+		return s instanceof ArraySchema || ARRAY_TYPE.equals(s.getType()) || s.getItems() != null;
 	}
 
 	/**
@@ -1391,14 +1417,14 @@ public class SoapUIProject {
 	private Object buildRequiredPropertyExampleValue(Schema property, RefResolver refResolver, String childPath) throws JSONException {
 		Schema refResolvedProperty = refResolver.resolveSchema(property);
 		Schema fullyResolvedProperty = resolveComposedSchema(refResolvedProperty, refResolver);
-		if (fullyResolvedProperty instanceof ObjectSchema) {
+		if (isObjectSchema(fullyResolvedProperty)) {
 			return buildRequiredPropertiesExample(fullyResolvedProperty, refResolver, childPath);
 		}
-		if (fullyResolvedProperty instanceof ArraySchema) {
-			Schema itemsSchema = refResolver.resolveSchema(((ArraySchema) fullyResolvedProperty).getItems());
+		if (isArraySchema(fullyResolvedProperty)) {
+			Schema itemsSchema = refResolver.resolveSchema(fullyResolvedProperty.getItems());
 			Schema fullyResolvedItems = resolveComposedSchema(itemsSchema, refResolver);
 			JSONArray array = new JSONArray();
-			array.put(fullyResolvedItems instanceof ObjectSchema
+			array.put(isObjectSchema(fullyResolvedItems)
 					? buildRequiredPropertiesExample(fullyResolvedItems, refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX)
 					: getPropertyExample(itemsSchema, refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX));
 			return array;
@@ -2133,10 +2159,10 @@ public class SoapUIProject {
 		properties.forEach((name, property) -> {
 			String childPath = path.isEmpty() ? name : path + "_" + name;
 			Schema resolvedProperty = resolveComposedSchema(refResolver.resolveSchema(property), refResolver);
-			if (resolvedProperty instanceof ObjectSchema) {
+			if (isObjectSchema(resolvedProperty)) {
 				collectRequiredPropertyPaths(resolvedProperty, refResolver, childPath, out);
-			} else if (resolvedProperty instanceof ArraySchema) {
-				collectRequiredPropertyPaths(((ArraySchema) resolvedProperty).getItems(), refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX, out);
+			} else if (isArraySchema(resolvedProperty)) {
+				collectRequiredPropertyPaths(resolvedProperty.getItems(), refResolver, childPath + ARRAY_ITEM_PATH_SUFFIX, out);
 			}
 		});
 	}

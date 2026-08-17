@@ -21,8 +21,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.apiaddicts.apitools.openapi2soapui.request.AccessTokenPosition;
 import org.apiaddicts.apitools.openapi2soapui.request.GrantType;
 import org.apiaddicts.apitools.openapi2soapui.request.Header;
@@ -138,9 +137,7 @@ class HasScopesTest {
 	}
 
 	private OpenAPI parseSpec(String yaml) {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(yaml, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(yaml);
 	}
 
 	private OAuth2Profile grantTypeProfile(String profileName, String scope) {

@@ -3,8 +3,7 @@ package org.apiaddicts.apitools.openapi2soapui.model;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
+import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -31,9 +30,7 @@ class ServerPatternTest {
 	);
 
 	private OpenAPI parseSpec() {
-		SwaggerParseResult result = new OpenAPIV3Parser().readContents(MULTI_SERVER_SPEC, null, null);
-		assertTrue(result.getMessages().isEmpty(), "Spec should parse without errors: " + result.getMessages());
-		return result.getOpenAPI();
+		return SerializedDataUtils.parseOpenAPIContent(MULTI_SERVER_SPEC);
 	}
 
 	@Test

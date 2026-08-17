@@ -6,7 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [2.0.0-beta-3]
+## [2.0.0-beta-4] - 2026-08-14
+
+### Fixed
+- `allOf`composed object body fields now expand into their sub-fields in every generated request body.
+
+## [2.0.0-beta-3] - 2026-08-10
 
 ### Added
 - `examples.wrong` is now applied to the negative `CaseErrorRequired{Field}` cases: when any `wrong` value is configured, the target required field is sent with an invalid value from `wrong`.
