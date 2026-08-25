@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.0] - 2026-08-25
+
+### Added
+- `examples.wrong` is now applied to the negative `CaseErrorRequired{Field}` cases: when any `wrong` value is configured, the target required field is sent with an invalid value from `wrong`.
+
+### Fixed
+- `allOf`composed object body fields now expand into their sub-fields in every generated request body.
+- `allOf`/`$ref` body fields that appear in more than one generated test case no longer collapse to an empty placeholder. Each generated request body now resolves its `$ref`s with a fresh resolver.
+- `microcksHeaders`: a custom header named `X-Microcks-Response-Name` supplied by the user is now preserved in the `CaseErrorStatusCode{StatusCode}`/`CaseErrorRequired{Field}` test cases instead of being overwritten by the computed example name.
+- String fields with `format` `date-time`, `email`, `uuid`, `password`, `byte`, `binary` now generate a valid `type: string` schema (previously a malformed `type: object`) and apply the configured `examples` value (e.g. `dateTime`). `date` unchanged.
+- `allOf` nested inside another `allOf` is now flattened recursively, so member fields are no longer dropped.
+
+### Changed
+- **Upgraded to Java 21 and Spring Boot 3.5.16** (from Java 11 / Spring Boot 2.5.2). Migrates the Jakarta EE namespace (`javax.validation` → `jakarta.validation`) and replaces `springdoc-openapi-ui` 1.5.6 with `springdoc-openapi-starter-webmvc-ui` 2.8.17. The request/response contract and the generated SoapUI project output are unchanged.
+- **Dependency refresh:** SoapUI `5.6.0` → `5.9.1` (now on Log4j2 + Groovy 3), swagger-parser `2.1.39` → `2.1.45`, Lombok → `1.18.46`. SoapUI 5.9.1's `DefaultSoapUICore` requires the Log4j2 `log4j-core` backend, so `log4j-to-slf4j` is excluded from the Spring Boot starters (the app itself still logs via SLF4J → Logback); the `guava` and `wsdl4j` SoapUI exclusions were removed because 5.9.1 needs them at runtime.
+- **Slimmer artifact:** excluded SoapUI 5.9.1's bundled telemetry (SmartBear analytics → Mixpanel / Segment / OkHttp / Kotlin) and its GraphQL support, both unused by headless REST/OpenAPI generation (~7 MB, 23 jars). `org.json` is now a direct dependency (`20260522`); it was previously present only transitively via that telemetry. Other heavy SoapUI transitives (BouncyCastle, RSyntaxTextArea, Rhino, HtmlUnit, TestNG, Saxon/Xalan, Jersey) are loaded by SoapUI's eager core initialization and must remain.
+- **Deployment:** WAR deployment now requires a Jakarta / Servlet 6 container — **Tomcat 10.1+** (previously Tomcat 9). The Docker base image is now `eclipse-temurin:21-jdk`.
+- Trailing-slash URL matching is disabled by default in Spring 6, so `POST .../soap-ui-projects/` (with a trailing slash) no longer matches; use `.../soap-ui-projects`.
+
 ## [2.0.0-beta-4] - 2026-08-14
 
 ### Fixed
