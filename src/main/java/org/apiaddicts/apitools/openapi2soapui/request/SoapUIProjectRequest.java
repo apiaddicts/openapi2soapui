@@ -3,8 +3,8 @@ package org.apiaddicts.apitools.openapi2soapui.request;
 import java.util.List;
 import java.util.Set;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotEmpty;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -37,4 +37,48 @@ public class SoapUIProjectRequest {
 	@Valid
 	@JsonProperty("headers")
 	private List<Header> headers;
+
+	@Valid
+	@JsonProperty("customAuthorizationsFile")
+	private List<CustomAuthorizationRequest> customAuthorizationsFile;
+
+	@JsonProperty("readOnly")
+	private Boolean readOnly;
+
+	@JsonProperty("serverPattern")
+	private String serverPattern;
+
+	@JsonProperty("minimalEndpoints")
+	private Boolean minimalEndpoints;
+
+	@JsonProperty("microcksHeaders")
+	private Boolean microcksHeaders;
+
+	@JsonProperty("generateOneOfAnyOf")
+	private Boolean generateOneOfAnyOf;
+
+	@JsonProperty("validateSchema")
+	private Boolean validateSchema;
+
+	@JsonProperty("schemaIsInline")
+	private Boolean schemaIsInline;
+
+	@JsonProperty("schemaPrettyPrint")
+	private Boolean schemaPrettyPrint;
+
+	@JsonProperty("isInline")
+	private Boolean isInline;
+
+	@JsonProperty("hasScopes")
+	private Boolean hasScopes;
+
+	@JsonProperty("applicationToken")
+	private Boolean applicationToken;
+
+	@JsonProperty("numberOfScopes")
+	private Integer numberOfScopes;
+
+	@Valid
+	@JsonProperty("examples")
+	private ExamplesConfig examples;
 }

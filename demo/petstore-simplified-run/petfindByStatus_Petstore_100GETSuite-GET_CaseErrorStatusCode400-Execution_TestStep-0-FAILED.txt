@@ -1,0 +1,42 @@
+Status: FAILED
+Time Taken: 105
+Size: 2
+Timestamp: Mon Aug 24 12:15:16 PET 2026
+TestStep: Execution_TestStep
+
+----------------- Messages ------------------------------
+[Valid HTTP Status Codes] Response status code:200 is not in acceptable list of status codes
+[Script Assertion] Response body does not match the expected JSON Schema: $: expected object. Expression: errors.isEmpty()
+
+----------------- Properties ------------------------------
+HTTP Version: HTTP/1.1
+Endpoint: https://petstore.swagger.io
+Method: GET
+StatusCode: 200
+URL: https://petstore.swagger.io/v2/pet/findByStatus?status=invalid_status_xyz
+
+---------------- Request ---------------------------
+Connection: [Keep-Alive]
+User-Agent: [Apache-HttpClient/4.5.5 (Java/17.0.12)]
+Host: [petstore.swagger.io]
+Accept-Encoding: [gzip,deflate]
+
+GET https://petstore.swagger.io/v2/pet/findByStatus?status=invalid_status_xyz HTTP/1.1
+Accept-Encoding: gzip,deflate
+Host: petstore.swagger.io
+Connection: Keep-Alive
+User-Agent: Apache-HttpClient/4.5.5 (Java/17.0.12)
+
+
+---------------- Response --------------------------
+Transfer-Encoding: [chunked]
+Server: [Jetty(9.2.9.v20150224)]
+Access-Control-Allow-Origin: [*]
+Access-Control-Allow-Methods: [GET, POST, DELETE, PUT]
+Connection: [keep-alive]
+#status#: [HTTP/1.1 200 OK]
+Date: [Mon, 24 Aug 2026 17:15:16 GMT]
+Access-Control-Allow-Headers: [Content-Type, api_key, Authorization]
+Content-Type: [application/json]
+
+[]

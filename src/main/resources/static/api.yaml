@@ -29,19 +29,20 @@ paths:
         - A __Resource__ is added to the __REST Service__ for each path defined in OpenAPI Spec
         - A __Method__ is added to its __Resource__ 
         - A __Request__ is generated for each __Method__.
-        - A __Test Suite__ is created for each __Method__ within the __SoapUI Project__.
-        - A __Test Case__ is added to the __Test Suite__ for each test case name defined in the property testCaseNames of request body
-        - A __Test Step__ is generated with a __Request__ and added to the __Test Case__
-        
+        - A __Test Suite__ is created for each __Method__ within the __SoapUI Project__
+        - Exactly 4 __Test Cases__ are added to each __Test Suite__: CaseOkAllProperties, CaseOkRequiredProperties, one CaseErrorStatusCode{StatusCode} per documented non-2xx response, and one CaseErrorRequired{Field} per required body property/query parameter
+        - A __Test Step__ is generated with a __Request__ and added to each __Test Case__
+
         Nomenclature used:
         - SoapUI Project: {apiName}\_{apiVersion}
         - REST Service: {apiName}
         - Resource: {path}
         - Method: {httpMethodInUppercase}
         - Request: {defaultRequestName}
-        - Test Suite: {path}\_{httpMethodInUppercase}\_TestSuite
-        - Test Case (Default): Success\_TestCase
-        - Test Case: {testCaseName}\_TestCase
+        - Test Suite: {path}\_{apiName}\_{apiVersion}-{httpMethodInUppercase}-Suite (run type SEQUENTIAL, abortOnError false)
+        - Test Suite (Custom Authorizations): authorizations\_{apiName}\_{apiVersion}-Suite
+        - Test Case: {httpMethodInUppercase}\_Case{CaseDescription}, where CaseDescription is one of OkAllProperties, OkRequiredProperties, ErrorStatusCode{StatusCode}, ErrorRequired{Field}, or a custom name from testCaseNames
+        - Test Case (Custom Authorization item): {method}\_Case{customAuthorizationName}
         - Test Step: Execution\_TestStep
 
         The variables are obtained from:
@@ -50,13 +51,38 @@ paths:
         - path: each path defined in the OpenAPI Spec
         - httpMethodInUppercase: each HTTP methods of paths defined in OpenAPI Spec
         - defaultRequestName: Request 1
-        - testCaseName: each test case name defined in the property testCaseNames of request body 
 
         To generate __oAuth 2.0 Profiles__ in the __SoapUI Project__, a list of elements with the name "oAuth2Profiles" must be defined as part of the request body with the configuration of each profile.
 
         Additionally, it is possible to add custom headers to each of the requests, defining a list of key-value elements with the name "headers" as part of the request body, where key indicates the name of the header and value the value of the header.
 
-        The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.          
+        Additionally, it is possible to prepend custom authorization requests, defining a list of elements with the name "customAuthorizationsFile" as part of the request body, each with a name, method, endpoint and optional headers/mediaType/body. These are generated as a dedicated **authorizations\_{apiName}\_{apiVersion}-Suite**, added before every per-endpoint Test Suite, with Test Cases named {method}\_Case{name} using each entry's own method.
+
+        Additionally, when the **readOnly** flag is set to true, only GET and OPTIONS test cases are generated; POST, PUT, PATCH and DELETE operations are excluded.
+
+        Additionally, for each name in **testCaseNames**, an extra {httpMethodInUppercase}\_Case{name} test case identical to CaseOkAllProperties is generated. Empty/unset (default) generates none.
+
+        Additionally, when the **minimalEndpoints** flag is set to false (default), CaseErrorRequired{Field} is generated for every required body property (recursing into nested required objects) and every required query parameter. Set to true to collapse this to at most one such test case (the first required body property found, or the first required query parameter if the operation has no JSON body).
+
+        Additionally, when the **microcksHeaders** flag is set to true, an X-Microcks-Response-Name header is added to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined. For the CaseErrorStatusCode{StatusCode}/CaseErrorRequired{Field} test cases, the header is resolved against that specific status's (or "default") response, rather than the operation's first 2xx response.
+
+        Additionally, when the **generateOneOfAnyOf** flag is set to true, oneOf/anyOf schemas in the request body are resolved to their first candidate schema when generating the example body (default: unresolved/omitted). allOf schemas are always merged into a single object regardless of this flag.
+
+        Additionally, when the **validateSchema** flag is set to false, no response-schema assertion is added to any test case (the status-code assertion is always added regardless). When true (default), every generated test case's status-code assertion is joined by a response-schema assertion, when the corresponding response documents a JSON schema.
+
+        Additionally, when the **schemaIsInline** flag is set to false (the default), the JSON Schema used by a test case's schema assertion is stored as a SoapUI Project Property and read from the script at runtime via a `context.expand('${#Project#...}')` call, instead of being embedded literally in the script; set to true to embed the schema directly in the script instead.
+
+        Additionally, when the **schemaPrettyPrint** flag is set to true (the default), the JSON Schema used by a test case's schema assertion is pretty-printed (indented); set to false to serialize it compactly instead, with no extra whitespace.
+
+        Additionally, when the **isInline** flag is set to false (the default), every generated JSON request-body example value is stored as a SoapUI Project Property and referenced from the body via a `${#Project#...}` token, instead of being embedded literally; set to true to embed literal values directly in the body instead. Query parameter values are always embedded literally, regardless of this flag.
+
+        Additionally, when the **hasScopes** flag is set to true, an extra {httpMethodInUppercase}\_CaseOkScope{profileName} test case is generated per configured oAuth2Profiles entry beyond the first, each wired via its own Credentials config to that specific profile, independent of which profile backs the default request (which always uses only the first oAuth2Profiles entry). Has no effect when oAuth2Profiles is empty, not provided, or has only one entry (default: false).
+
+        Additionally, when the **hasScopes** flag is set to true and the **applicationToken** flag is also set to true, an extra {httpMethodInUppercase}\_CaseOkApplicationToken{profileName} test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user — including the first entry), separate from the hasScopes test cases. Has no effect when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured (default: false).
+
+        Additionally, when the **hasScopes** flag is set to true, the **numberOfScopes** value sets the total number of test cases wired to a profile-based scope credential — counting the default request and any extra scope-variant test cases — using the first numberOfScopes configured oAuth2Profiles entries in configured order. Values below 1 (unset, 0, or negative) are treated as 1: no extra test case is generated, since the default request alone already covers the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Has no effect when hasScopes is false, or when oAuth2Profiles is empty or not provided. Does not affect applicationToken test cases.
+
+        The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
       requestBody:
         description: |
           Information necessary for the generation of the SoapUI Project.
@@ -65,8 +91,20 @@ paths:
           - apiName: Name of the API
           - oAuth2Profiles: List with the configurations of the oAuth 2.0 authentication profiles
           - openApiSpec: Base-64 encoded OpenAPI Spec
-          - testCaseNames: List with the names of the test cases
+          - testCaseNames: List of names; for each one, an extra {METHOD}_Case{name} test case identical to CaseOkAllProperties is generated
           - headers: List of custom headers
+          - customAuthorizationsFile: List of custom authorization requests, prepended as a dedicated "authorizations" Test Suite before the per-endpoint Test Suites
+          - readOnly: Boolean flag to generate only read operations (GET/OPTIONS)
+          - minimalEndpoints: Boolean flag. When false (default), generates one CaseErrorRequired{Field} test case per required body property and required query parameter; when true, collapses this to at most one
+          - microcksHeaders: Boolean flag; when true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. If a custom header named X-Microcks-Response-Name is supplied, its value is preserved in every test case (both Ok* and Error*) and never overwritten
+          - generateOneOfAnyOf: Boolean flag; when true, resolves oneOf/anyOf schemas to their first candidate when generating example bodies; when false (the default), a oneOf/anyOf property is rendered as a single empty value instead of being expanded. allOf is always merged regardless of this flag
+          - validateSchema: Boolean flag; when true (default), adds a response-schema assertion to every test case in addition to its status-code assertion; when false, only the status-code assertion is added
+          - schemaIsInline: Boolean flag. When false (default), the response JSON Schema is generated as a SoapUI Project Property referenced via a `context.expand('${#Project#...}')` call instead of a literal value; when true, the schema is embedded directly in the assertion script
+          - schemaPrettyPrint: Boolean flag. When true (default), the response JSON Schema is pretty-printed (indented); when false, it is serialized compactly with no extra whitespace
+          - isInline: Boolean flag; when false (default), JSON request-body example values are generated as SoapUI Project Properties referenced via `${#Project#...}` tokens instead of literal values; when true, literal values are embedded directly in the body
+          - hasScopes: Boolean flag; when true, generates one additional test case per configured oAuth2Profiles entry beyond the first, each using that profile's own authentication
+          - applicationToken: Boolean flag; only relevant when hasScopes is true. When also true, generates one additional test case per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (including the first), separate from the hasScopes test cases
+          - numberOfScopes: Integer; only relevant when hasScopes is true. Total number of test cases wired to a profile-based scope credential, counting the default request, using the first N configured oAuth2Profiles entries in configured order. Values below 1 (unset/0/negative) are treated as 1 (no extra test case)
         content:
           aplication/json:
             schema:
@@ -149,6 +187,12 @@ paths:
             - 1007: testCaseNames field must be an array.
             - 1008: testCaseNames field items must be strings.
             - 1401: The testCaseNames items cannot be empty.
+            - 1009: customAuthorizationsFile field must be an array.
+            - 1010: customAuthorizationsFile field items must be objects.
+            - 1501: For the customAuthorizationsFile items, the name attribute is mandatory.
+            - 1502: For the customAuthorizationsFile items, the method attribute is mandatory.
+            - 1503: For the customAuthorizationsFile items, the endpoint attribute is mandatory.
+            - 1504: For the customAuthorizationsFile items, the method attribute is invalid.
           content:
             application/json:
               schema:
@@ -447,12 +491,105 @@ components:
           example: b3BlbmFwaTogMy4wLjAKaW5mbzoKICB0aXRsZTogU2FtcGxlIEFQSQogIGRlc2NyaXB0aW9uOiBPcHRpb25hbCBtdWx0aWxpbmUgb3Igc2luZ2xlLWxpbmUgZGVzY3JpcHRpb24gaW4gW0NvbW1vbk1hcmtdKGh0dHA6Ly9jb21tb25tYXJrLm9yZy9oZWxwLykgb3IgSFRNTC4KICB2ZXJzaW9uOiAwLjEuOQpzZXJ2ZXJzOgogIC0gdXJsOiBodHRwOi8vYXBpLmV4YW1wbGUuY29tL3YxCiAgICBkZXNjcmlwdGlvbjogT3B0aW9uYWwgc2VydmVyIGRlc2NyaXB0aW9uLCBlLmcuIE1haW4gKHByb2R1Y3Rpb24pIHNlcnZlcgogIC0gdXJsOiBodHRwOi8vc3RhZ2luZy1hcGkuZXhhbXBsZS5jb20KICAgIGRlc2NyaXB0aW9uOiBPcHRpb25hbCBzZXJ2ZXIgZGVzY3JpcHRpb24sIGUuZy4gSW50ZXJuYWwgc3RhZ2luZyBzZXJ2ZXIgZm9yIHRlc3Rpbmc=
         testCaseNames:
           type: array
-          description: List of test case names for each method of the resources.
+          description: For each name, an extra {METHOD}_Case{name} test case identical to CaseOkAllProperties is generated. Empty/unset (default) generates none.
           items:
             type: string
-            example: Success
+            example: Custom
         headers:
           $ref: '#/components/schemas/Headers'
+        customAuthorizationsFile:
+          $ref: '#/components/schemas/CustomAuthorizationsFile'
+        readOnly:
+          type: boolean
+          description: If true, only GET and OPTIONS test cases are generated. POST, PUT, PATCH and DELETE are excluded.
+          example: false
+        minimalEndpoints:
+          type: boolean
+          description: If false (default), generates one {METHOD}_CaseErrorRequired{Field} test case per required body property (recursing into nested required objects) and per required query parameter. If true, collapses this to at most one such test case (the first required body property found, or the first required query parameter if the operation has no JSON body).
+          example: false
+        microcksHeaders:
+          type: boolean
+          description: If true, adds an X-Microcks-Response-Name header to each request, in addition to any custom headers. Its value is the name of the response example defined in the OpenAPI spec (first 2xx response, falling back to the "default" response), or "default" if none is defined. For the CaseErrorStatusCode{StatusCode}/CaseErrorRequired{Field} test cases, the header is resolved against that specific status's (or "default") response. If a custom header named X-Microcks-Response-Name is supplied, its value is preserved in every test case (both Ok* and Error*).
+          example: false
+        generateOneOfAnyOf:
+          type: boolean
+          description: If true, resolves oneOf/anyOf schemas to their first candidate schema when generating the example request body. When false (the default), a oneOf/anyOf property is rendered as a single empty value instead of being expanded into subfields. allOf schemas are always merged into a single object regardless of this flag.
+          example: false
+        validateSchema:
+          type: boolean
+          description: If true (default), every generated test case's status-code assertion is joined by a response-schema assertion (when the corresponding response documents a JSON schema). If false, only the status-code assertion is added — no schema assertion is generated for any test case.
+          example: true
+        schemaIsInline:
+          type: boolean
+          description: If false (default), the response JSON Schema used by a test case's schema assertion is generated as a SoapUI Project Property and read from the script at runtime via a "context.expand('${#Project#...}')" call. If true, the schema is embedded directly as a literal in the assertion script instead.
+          example: false
+        schemaPrettyPrint:
+          type: boolean
+          description: If true (default), the response JSON Schema used by a test case's schema assertion is pretty-printed (indented). If false, it is serialized compactly with no extra whitespace.
+          example: true
+        isInline:
+          type: boolean
+          description: If false (default), JSON request body example values are generated as SoapUI Project Properties and referenced from the body via a "${#Project#...}" token. If true, literal example values are embedded directly in the body instead. Query parameter values are always embedded literally, regardless of this flag.
+          example: false
+        hasScopes:
+          type: boolean
+          description: If true, for each generated method, an extra {METHOD}_CaseOkScope{profileName} test case is generated per configured oAuth2Profiles entry beyond the first, each wired to that profile's own OAuth 2.0 authentication, independent of the default request (which always uses only the first oAuth2Profiles entry). No-op when oAuth2Profiles is empty, not provided, or has only one entry.
+          example: false
+        applicationToken:
+          type: boolean
+          description: Only relevant when hasScopes is true. If also true, for each generated method, an extra {METHOD}_CaseOkApplicationToken{profileName} test case is generated per configured oAuth2Profiles entry whose grantType is CLIENT_CREDENTIALS (an application-only token, with no user — including the first entry), wired to that profile's own OAuth 2.0 authentication — separate from the hasScopes scope variant test cases. No-op when hasScopes is false, or when no CLIENT_CREDENTIALS-grant profile is configured.
+          example: false
+        numberOfScopes:
+          type: integer
+          description: Only relevant when hasScopes is true. Total number of test cases wired to a profile-based scope credential — counting the default request and any extra scope-variant test cases — using the first numberOfScopes configured oAuth2Profiles entries in configured order. Values below 1 (unset, 0, or negative) are treated as 1 — no extra test case is generated, since the default request alone already covers the first configured profile. Values at or above the number of configured oAuth2Profiles entries use all of them. Does not affect applicationToken test cases.
+          example: 1
+        serverPattern:
+          type: string
+          description: Pattern to select the OpenAPI server used as endpoint. Wrap the substring with % (e.g. %dev%). If no server matches, or if serverPattern is omitted entirely, the first declared server is used.
+          example: "%dev%"
+        examples:
+          $ref: '#/components/schemas/Examples'
+    Examples:
+      type: object
+      description: >-
+        Custom example values used when generating request body properties and query-parameter values. Any field not provided falls back to the tool's internal default.
+        "successful" values are used for valid request bodies and valid query-parameter values.
+        "wrong" values are used for the negative CaseErrorRequired{Field} cases: when any "wrong" value is configured, the target required field is sent with an invalid value taken from "wrong" (e.g. wrong.dateTime) instead of being omitted (body) or left empty (query parameter); when "wrong" is not configured, those cases keep the default behavior (omit the required body field / empty the required query parameter).
+        These values only substitute scalar leaf values (string/number/boolean/date/dateTime and array/object literals); they do not expand or otherwise affect oneOf/anyOf/allOf composition — use generateOneOfAnyOf to control oneOf/anyOf expansion.
+        String formats without a dedicated key (email, uuid, password, byte, binary) use the "string" value in request bodies; query parameters additionally emit built-in realistic samples for common formats (e.g. user@example.com for email), which take precedence over "string".
+      properties:
+        successful:
+          $ref: '#/components/schemas/ExampleValues'
+        wrong:
+          $ref: '#/components/schemas/ExampleValues'
+    ExampleValues:
+      type: object
+      properties:
+        string:
+          type: string
+          example: goodstring
+        number:
+          type: number
+          example: 6
+        boolean:
+          type: boolean
+          example: true
+        date:
+          type: string
+          format: date
+          example: "2020-01-01"
+        dateTime:
+          type: string
+          format: date-time
+          example: "2020-01-01T23:59:59"
+        array:
+          type: string
+          description: Literal value used verbatim for array-typed properties/parameters (e.g. a JSON array literal such as "[1,2,3]").
+          example: "[1,2,3]"
+        object:
+          type: string
+          description: Literal value used verbatim for object-typed properties/parameters (e.g. a JSON object literal such as {"id":1}).
+          example: "{\"id\":1}"
     Headers:
       type: array
       description: List of optionals headers. This apply in all resources
@@ -467,6 +604,40 @@ components:
             type: string
             description: Value of header param
             example: ewogIm5hbWUiIDogIm5vbWJyZSIsCiAiZGlyIiA6ICJkaXIiCn0
+    CustomAuthorizationsFile:
+      type: array
+      description: List of custom authorization requests, prepended as a dedicated "authorizations" Test Suite before the per-endpoint Test Suites
+      items:
+        $ref: '#/components/schemas/CustomAuthorizationRequest'
+    CustomAuthorizationRequest:
+      required:
+      - name
+      - method
+      - endpoint
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the authorization request; used to build the Resource, Method and Test Case names
+          example: Application token
+        method:
+          type: string
+          description: HTTP method of the authorization request
+          example: POST
+        endpoint:
+          type: string
+          description: Full URL the authorization request is sent to
+          example: https://api.example.com/security/token
+        headers:
+          $ref: '#/components/schemas/Headers'
+        mediaType:
+          type: string
+          description: Content-Type of the authorization request body
+          example: application/x-www-form-urlencoded
+        body:
+          type: string
+          description: Raw body content of the authorization request
+          example: grant_type=client_credentials&client_id={{client_id}}&client_secret={{client_secret}}
     OAuth2ProfileWithExistingToken:
       type: object
       properties:

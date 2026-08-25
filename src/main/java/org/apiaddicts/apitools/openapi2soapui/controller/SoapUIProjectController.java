@@ -1,6 +1,6 @@
 package org.apiaddicts.apitools.openapi2soapui.controller;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 import lombok.AllArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -34,8 +34,7 @@ public class SoapUIProjectController {
 		if (openAPI != null && openAPI.getInfo() != null && openAPI.getInfo().getVersion() == null) {
 			throw new APIVersionNotFoundException("Version not found in OpenAPI");
 		}
-    	SoapUIProject soapUIProject = soapUIProjectService.createSoapUIProject(newSoapUIProject.getApiName(), openAPI, 
-    			newSoapUIProject.getOAuth2Profiles(), newSoapUIProject.getHeaders(), newSoapUIProject.getTestCaseNames());
+    	SoapUIProject soapUIProject = soapUIProjectService.createSoapUIProject(newSoapUIProject, openAPI);
     	String projectContent = soapUIProject.getFileContent();
     	soapUIProject.deleteTemporaryFile();
     	return projectContent;

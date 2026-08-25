@@ -5,12 +5,12 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>2.5.2</version>
+		<version>3.5.16</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>net.cloudappi</groupId>
 	<artifactId>openapi2soapui</artifactId>
-	<version>1.0.3</version>
+	<version>2.0.0</version>
 	<packaging>${packaging.type}</packaging>
 
 	<name>openapi2soapui</name>
@@ -48,18 +48,20 @@
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-		<java.version>11</java.version>
+		<java.version>21</java.version>
 
-		<springdoc.version>1.5.6</springdoc.version>
-		<soapui.version>5.6.0</soapui.version>
-		<swagger-parser.version>2.0.24</swagger-parser.version>
+		<springdoc.version>2.8.17</springdoc.version>
+		<soapui.version>5.9.1</soapui.version>
+		<swagger-parser.version>2.1.45</swagger-parser.version>
+		<json.version>20260522</json.version>
+		<lombok.version>1.18.46</lombok.version>
 	</properties>
 
 	<profiles>
 		<profile>
 			<id>jar</id>
 			<properties>
-				<packaging.type>jar</packaging.type>				
+				<packaging.type>jar</packaging.type>
 			</properties>
 		</profile>
 		<profile>
@@ -68,7 +70,7 @@
 				<activeByDefault>true</activeByDefault>
 			</activation>
 			<properties>
-				 <packaging.type>war</packaging.type>				 
+				 <packaging.type>war</packaging.type>
 			</properties>
 		</profile>
 		<profile>
@@ -88,16 +90,29 @@
 			<properties>
                 <packaging.type>war</packaging.type>
 			</properties>
-		</profile>		
-	 </profiles>	
+		</profile>
+	 </profiles>
 
-	<dependencies>	
+	<dependencies>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+			<exclusions>
+				<!-- SoapUI 5.9.x uses Log4j2 and DefaultSoapUICore.initLog() casts the LoggerContext
+				     to log4j-core's implementation. Spring Boot's log4j-to-slf4j bridge makes that
+				     context an SLF4JLoggerContext, causing a ClassCastException on SoapUIProject
+				     construction. Removing the bridge lets log4j-core (pulled by SoapUI) be the active
+				     Log4j2 backend; the app itself logs via SLF4J -> Logback and is unaffected. The
+				     exclusion is repeated on every starter that transitively pulls spring-boot-starter-logging
+				     (Maven exclusions are per-path). -->
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-to-slf4j</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
-			
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-tomcat</artifactId>
@@ -113,6 +128,13 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
+			<exclusions>
+				<!-- See spring-boot-starter-web: keep log4j-to-slf4j off the classpath for SoapUI. -->
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-to-slf4j</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 		<dependency>
@@ -124,9 +146,14 @@
 					<groupId>com.vaadin.external.google</groupId>
 					<artifactId>android-json</artifactId>
 				</exclusion>
+				<!-- See spring-boot-starter-web: keep log4j-to-slf4j off the test classpath for SoapUI. -->
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-to-slf4j</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
- 
+
 		<dependency>
 		   <groupId>org.hibernate.validator</groupId>
 		   <artifactId>hibernate-validator</artifactId>
@@ -134,7 +161,7 @@
 
 		<dependency>
 			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-ui</artifactId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>${springdoc.version}</version>
 		</dependency>
 
@@ -147,9 +174,23 @@
 					<groupId>javax.xml.bind</groupId>
 					<artifactId>jsr173_api</artifactId>
 				</exclusion>
+				<!-- Telemetry/analytics: SoapUI 5.9.x bundles SmartBear analytics (Mixpanel + Segment,
+				     transitively pulling okhttp/retrofit/kotlin). Not needed for headless project
+				     generation; excluding it removes the telemetry stack and trims the artifact. -->
 				<exclusion>
-					<groupId>com.google.guava</groupId>
-					<artifactId>guava</artifactId>
+					<groupId>com.smartbear.utils.analytics</groupId>
+					<artifactId>analytics-core</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.smartbear.utils.analytics</groupId>
+					<artifactId>out-app-analytics-provider</artifactId>
+				</exclusion>
+				<!-- GraphQL support is not needed for REST/OpenAPI generation. NOTE: most other heavy
+				     SoapUI transitives (RSyntaxTextArea, BouncyCastle, Rhino, HtmlUnit, TestNG, Saxon/Xalan,
+				     Jersey…) ARE referenced by SoapUI's eager core init even headless and must NOT be excluded. -->
+				<exclusion>
+					<groupId>com.graphql-java</groupId>
+					<artifactId>graphql-java</artifactId>
 				</exclusion>
 				<exclusion>
 					<groupId>commons-collections</groupId>
@@ -272,10 +313,6 @@
 					<artifactId>mail</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>wsdl4j</groupId>
-					<artifactId>wsdl4j</artifactId>
-				</exclusion>
-				<exclusion>
 					<groupId>com.narupley</groupId>
 					<artifactId>not-going-to-be-commons-ssl</artifactId>
 				</exclusion>
@@ -386,15 +423,24 @@
 
 		<dependency>
 			<groupId>org.yaml</groupId>
-			<artifactId>snakeyaml</artifactId>      
+			<artifactId>snakeyaml</artifactId>
+		</dependency>
+
+		<!-- Used directly by SoapUIProject / SerializedDataUtils (org.json.JSONObject, JSONArray, JSONException).
+		     Declared explicitly instead of relying on it arriving transitively (it previously leaked in via
+		     SoapUI's bundled telemetry, which is now excluded). -->
+		<dependency>
+			<groupId>org.json</groupId>
+			<artifactId>json</artifactId>
+			<version>${json.version}</version>
 		</dependency>
 
 	</dependencies>
-	
+
 	<repositories>
 		<repository>
 			<id>SmartBearPluginRepository</id>
-			<url>https://rapi.tools.ops.smartbear.io/nexus/content/groups/public/</url>			
+			<url>https://rapi.tools.ops.smartbear.io/nexus/content/groups/public/</url>
 		</repository>
 	</repositories>
 

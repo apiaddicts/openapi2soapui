@@ -57,9 +57,8 @@ Nomenclature used:
 - Resource: {path}
 - Method: {httpMethodInUppercase}
 - Request: {defaultRequestName}
-- Test Suite: {path}\_{httpMethodInUppercase}\_TestSuite
-- Test Case (Default): Success\_TestCase
-- Test Case: {testCaseName}\_TestCase
+- Test Suite: {path}\_{apiName}\_{apiVersion}-{httpMethodInUppercase}-Suite (run type SEQUENTIAL, abortOnError false)
+- Test Case: {httpMethodInUppercase}\_Case{CaseDescription}
 - Test Step: Execution\_{httpMethodInUppercase}\_TestStep
 
 The variables are obtained from:
@@ -67,23 +66,22 @@ The variables are obtained from:
 - apiVersion: version defined in the 'info' section of the OpenAPI Spec
 - path: each path defined in the OpenAPI Spec
 - httpMethodInUppercase: each HTTP methods of paths defined in OpenAPI Spec
-- testCaseName: each test case name defined in the property testCaseNames of request body
 
 ## Technology stack
 ### Overview
 
 |Technology              |Description                 |
 |------------------------|----------------------------|
-|Core Framework          |Spring Boot 2               |
+|Core Framework          |Spring Boot 3               |
 
 ### Server - Backend
 
 |Technology                                               |Description                                                                   |
 |---------------------------------------------------------|------------------------------------------------------------------------------|
-|[JDK 11](https://docs.oracle.com/en/java/javase/11/)                       |Java Development Kit                                                          |
-|[Spring Boot 2](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
+|[JDK 21](https://docs.oracle.com/en/java/javase/21/)                       |Java Development Kit                                                          |
+|[Spring Boot 3](https://spring.io/projects/spring-boot)  |Framework to ease the bootstrapping and development of new Spring Applications|
 |[Maven 3](https://maven.apache.org)                      |Dependency Management                                                         |
-|[Tomcat 9](https://tomcat.apache.org)                    |Server deploy WAR                                                             |
+|[Tomcat 10.1+](https://tomcat.apache.org)                |Server deploy WAR (Jakarta EE / Servlet 6)                                    |
 
 ###  Libraries and Plugins
 |Technology              |Description                 |
@@ -100,7 +98,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 ### Prerequisites
 
-* [JDK Installation](https://docs.oracle.com/en/java/javase/11/install/overview-jdk-installation.html#GUID-8677A77F-231A-40F7-98B9-1FD0B48C346A)
+* [JDK Installation](https://docs.oracle.com/en/java/javase/21/install/overview-jdk-installation.html)
 * [Apache Maven Installation](https://maven.apache.org/install.html)
 * [Setting up Lombok](https://projectlombok.org/setup/overview)
   * [Eclipse and its offshoots](https://projectlombok.org/setup/eclipse)

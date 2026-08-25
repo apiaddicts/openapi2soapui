@@ -1,0 +1,24 @@
+OpenJDK 64-Bit Server VM warning: Ignoring option --illegal-access=permit; support was removed in 17.0
+SoapUI 5.10.0 TestCase Runner
+16:32:00,539 INFO  [DefaultSoapUICore] initialized soapui-settings from [C:\Users\hp_Xa\soapui-settings.xml]
+16:32:02,420 INFO  [PluginManager] Adding plugin from [C:\Users\hp_Xa\.soapuios\plugins\readyapi-postman-1.0.1.jar]
+16:32:02,420 INFO  [PluginManager] Adding plugin from [C:\Users\hp_Xa\.soapuios\plugins\ready-mqtt-plugin-dist.jar]
+16:32:04,085 INFO  [PluginManager] Adding plugin from [C:\Users\hp_Xa\.soapuios\plugins\ready-uxm-plugin-os-1.0.3.jar]
+16:32:04,805 INFO  [PluginManager] 3 plugins loaded in 2379 ms
+16:32:04,805 INFO  [DefaultSoapUICore] All plugins loaded
+16:32:07,740 INFO  [WsdlProject] Loaded project from [file:/D:/Cloudappi/Proyectos/ApiAddictsTools/Repos/openapi2soapui/demo/petstore-ok-only-run/petstore-ok-only-soapui-project.xml]
+16:32:07,746 INFO  [SoapUITestCaseRunner] Running SoapUI tests in project [Petstore_1.0.0]
+16:32:07,749 INFO  [SoapUITestCaseRunner] Running Project [Petstore_1.0.0], runType = SEQUENTIAL
+16:32:07,777 INFO  [SoapUITestCaseRunner] Running SoapUI testcase [GET_CaseOkAllProperties]
+16:32:07,789 INFO  [SoapUITestCaseRunner] running step [Execution_TestStep]
+16:32:11,957 INFO  [SoapUITestCaseRunner] Assertion [Valid HTTP Status Codes] has status VALID
+16:32:11,957 INFO  [SoapUITestCaseRunner] Assertion [Script Assertion] has status VALID
+16:32:11,981 INFO  [SoapUITestCaseRunner] Finished running SoapUI testcase [GET_CaseOkAllProperties], time taken: 1277ms, status: FINISHED
+16:32:11,983 INFO  [SoapUITestCaseRunner] Running SoapUI testcase [GET_CaseOkRequiredProperties]
+16:32:11,984 INFO  [SoapUITestCaseRunner] running step [Execution_TestStep]
+16:32:12,255 INFO  [SoapUITestCaseRunner] Assertion [Valid HTTP Status Codes] has status VALID
+16:32:12,256 INFO  [SoapUITestCaseRunner] Assertion [Script Assertion] has status VALID
+16:32:12,256 INFO  [SoapUITestCaseRunner] Finished running SoapUI testcase [GET_CaseOkRequiredProperties], time taken: 108ms, status: FINISHED
+16:32:12,264 INFO  [SoapUITestCaseRunner] Project [Petstore_1.0.0] finished with status [FINISHED] in 4496ms
+16:32:12,269 WARN  [Tools] Could not delete temporary directory C:\Users\hp_Xa\AppData\Local\Temp\087d3d49-67a0-46ed-92d7-88f5e355a45f
+16:32:12,269 WARN  [Tools] Could not delete temporary directory C:\Users\hp_Xa\AppData\Local\Temp\087d3d49-67a0-46ed-92d7-88f5e355a45f
