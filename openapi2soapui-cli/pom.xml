@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>net.cloudappi</groupId>
+		<artifactId>openapi2soapui</artifactId>
+		<version>2.1.0</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>openapi2soapui-cli</artifactId>
+	<packaging>jar</packaging>
+
+	<name>openapi2soapui-cli</name>
+	<description>Openapi to SoapUI Project - command line interface</description>
+
+	<build>
+		<finalName>openapi2soapui-cli</finalName>
+
+		<resources>
+			<!-- spring-boot-starter-parent leaves '@' as the only filtering delimiter, hence @project.version@. -->
+			<resource>
+				<directory>${basedir}/src/main/resources</directory>
+				<filtering>true</filtering>
+				<includes>
+					<include>cli.properties</include>
+				</includes>
+			</resource>
+			<resource>
+				<directory>${basedir}/src/main/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>cli.properties</exclude>
+				</excludes>
+			</resource>
+		</resources>
+
+		<plugins>
+			<!-- Boot's repackage is used even though the CLI does not boot Spring: it nests dependency jars
+			     intact under BOOT-INF/lib, so log4j2's Log4j2Plugins.dat and SoapUI's XMLBeans resources stay
+			     in their own jars. maven-shade / maven-assembly would have to merge them and SoapUI's core
+			     initialization breaks. -->
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>org.apiaddicts.apitools.openapi2soapui.cli.Openapi2SoapUICli</mainClass>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<dependencies>
+
+		<dependency>
+			<groupId>net.cloudappi</groupId>
+			<artifactId>openapi2soapui-core</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<!-- SLF4J provider: without one, SLF4J 2 warns on stderr and drops every message. log4j-to-slf4j
+		     stays absent so SoapUI's log4j-core remains the Log4j2 backend. -->
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+		</dependency>
+
+		<!-- Required by Hibernate Validator's ResourceBundleMessageInterpolator, used in CliValidator. -->
+		<dependency>
+			<groupId>org.apache.tomcat.embed</groupId>
+			<artifactId>tomcat-embed-el</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>com.vaadin.external.google</groupId>
+					<artifactId>android-json</artifactId>
+				</exclusion>
+				<!-- Keep log4j-to-slf4j off the test classpath for SoapUI. -->
+				<exclusion>
+					<groupId>org.apache.logging.log4j</groupId>
+					<artifactId>log4j-to-slf4j</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+	</dependencies>
+
+</project>

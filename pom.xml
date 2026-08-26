@@ -10,8 +10,8 @@
 	</parent>
 	<groupId>net.cloudappi</groupId>
 	<artifactId>openapi2soapui</artifactId>
-	<version>2.0.0</version>
-	<packaging>${packaging.type}</packaging>
+	<version>2.1.0</version>
+	<packaging>pom</packaging>
 
 	<name>openapi2soapui</name>
 	<description>Openapi to SoapUI Project</description>
@@ -35,15 +35,12 @@
 		<url>https://github.com/apiaddicts/openapi2soapui/tree/master</url>
 	</scm>
 
-	<build>
-		<finalName>openapi2soapui</finalName>
-		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-			</plugin>
-		</plugins>
-	</build>
+
+	<modules>
+		<module>openapi2soapui-core</module>
+		<module>openapi2soapui-rest</module>
+		<module>openapi2soapui-cli</module>
+	</modules>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -55,7 +52,34 @@
 		<swagger-parser.version>2.1.45</swagger-parser.version>
 		<json.version>20260522</json.version>
 		<lombok.version>1.18.46</lombok.version>
+		<swagger-v2-parser.version>1.0.76</swagger-v2-parser.version>
+		<swagger-v2-core.version>1.6.16</swagger-v2-core.version>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>io.swagger</groupId>
+				<artifactId>swagger-parser</artifactId>
+				<version>${swagger-v2-parser.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger</groupId>
+				<artifactId>swagger-core</artifactId>
+				<version>${swagger-v2-core.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger</groupId>
+				<artifactId>swagger-models</artifactId>
+				<version>${swagger-v2-core.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.swagger</groupId>
+				<artifactId>swagger-annotations</artifactId>
+				<version>${swagger-v2-core.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<profiles>
 		<profile>
@@ -92,350 +116,6 @@
 			</properties>
 		</profile>
 	 </profiles>
-
-	<dependencies>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-web</artifactId>
-			<exclusions>
-				<!-- SoapUI 5.9.x uses Log4j2 and DefaultSoapUICore.initLog() casts the LoggerContext
-				     to log4j-core's implementation. Spring Boot's log4j-to-slf4j bridge makes that
-				     context an SLF4JLoggerContext, causing a ClassCastException on SoapUIProject
-				     construction. Removing the bridge lets log4j-core (pulled by SoapUI) be the active
-				     Log4j2 backend; the app itself logs via SLF4J -> Logback and is unaffected. The
-				     exclusion is repeated on every starter that transitively pulls spring-boot-starter-logging
-				     (Maven exclusions are per-path). -->
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-to-slf4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-tomcat</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<scope>provided</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation</artifactId>
-			<exclusions>
-				<!-- See spring-boot-starter-web: keep log4j-to-slf4j off the classpath for SoapUI. -->
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-to-slf4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>com.vaadin.external.google</groupId>
-					<artifactId>android-json</artifactId>
-				</exclusion>
-				<!-- See spring-boot-starter-web: keep log4j-to-slf4j off the test classpath for SoapUI. -->
-				<exclusion>
-					<groupId>org.apache.logging.log4j</groupId>
-					<artifactId>log4j-to-slf4j</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-
-		<dependency>
-		   <groupId>org.hibernate.validator</groupId>
-		   <artifactId>hibernate-validator</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-			<version>${springdoc.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>com.smartbear.soapui</groupId>
-			<artifactId>soapui</artifactId>
-			<version>${soapui.version}</version>
-			<exclusions>
-				<exclusion>
-					<groupId>javax.xml.bind</groupId>
-					<artifactId>jsr173_api</artifactId>
-				</exclusion>
-				<!-- Telemetry/analytics: SoapUI 5.9.x bundles SmartBear analytics (Mixpanel + Segment,
-				     transitively pulling okhttp/retrofit/kotlin). Not needed for headless project
-				     generation; excluding it removes the telemetry stack and trims the artifact. -->
-				<exclusion>
-					<groupId>com.smartbear.utils.analytics</groupId>
-					<artifactId>analytics-core</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.smartbear.utils.analytics</groupId>
-					<artifactId>out-app-analytics-provider</artifactId>
-				</exclusion>
-				<!-- GraphQL support is not needed for REST/OpenAPI generation. NOTE: most other heavy
-				     SoapUI transitives (RSyntaxTextArea, BouncyCastle, Rhino, HtmlUnit, TestNG, Saxon/Xalan,
-				     Jersey…) ARE referenced by SoapUI's eager core init even headless and must NOT be excluded. -->
-				<exclusion>
-					<groupId>com.graphql-java</groupId>
-					<artifactId>graphql-java</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>commons-collections</groupId>
-					<artifactId>commons-collections</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>commons-collections</groupId>
-					<artifactId>commons-lang</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>commons-collections</groupId>
-					<artifactId>commons-io</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.slf4j</groupId>
-					<artifactId>slf4j-log4j12</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.jgoodies</groupId>
-					<artifactId>forms</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.jgoodies</groupId>
-					<artifactId>looks</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.jgoodies</groupId>
-					<artifactId>binding</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-base</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-controls</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-graphics</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-media</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-web</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.openjfx</groupId>
-					<artifactId>javafx-swing</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>jetty</groupId>
-					<artifactId>jetty</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>jetty</groupId>
-					<artifactId>jetty-util</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>jetty</groupId>
-					<artifactId>servlet-api</artifactId>
-				</exclusion>
-				<exclusion>
-                    <groupId>org.apache.ws.security</groupId>
-					<artifactId>wss4j</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.sourceforge.htmlunit</groupId>
-					<artifactId>htmlunit</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.w3c.css</groupId>
-					<artifactId>sac</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpclient</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpmime</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpclient-cache</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpcore</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.httpcomponents</groupId>
-					<artifactId>httpcore-nio</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.oltu.oauth2</groupId>
-					<artifactId>org.apache.oltu.oauth2.client</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.oltu.oauth2</groupId>
-					<artifactId>org.apache.oltu.oauth2.httpclient4</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.google.oauth-client</groupId>
-					<artifactId>google-oauth-client</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.maven</groupId>
-					<artifactId>maven-plugin-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.activation</groupId>
-					<artifactId>activation</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.mail</groupId>
-					<artifactId>mail</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>com.narupley</groupId>
-					<artifactId>not-going-to-be-commons-ssl</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>swingx</groupId>
-					<artifactId>swingx</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>rhino</groupId>
-					<artifactId>js</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>bouncycastle</groupId>
-					<artifactId>bcprov</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>jtidy</groupId>
-					<artifactId>jtidy</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>hermesjms</groupId>
-					<artifactId>hermes</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.sourceforge.cssparser</groupId>
-					<artifactId>cssparser</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>net.sourceforge.nekohtml</groupId>
-					<artifactId>nekohtml</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.samba.jcifs</groupId>
-					<artifactId>jcifs</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>l2fprod</groupId>
-					<artifactId>l2fprod-common-directorychooser</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>l2fprod</groupId>
-					<artifactId>l2fprod-common-fontchooser</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.ws.commons.util</groupId>
-					<artifactId>ws-commons-util</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>commons-httpclient</groupId>
-					<artifactId>commons-httpclient</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.sonatype.install4j</groupId>
-					<artifactId>i4jruntime</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.codehaus.mojo</groupId>
-					<artifactId>animal-sniffer-annotations</artifactId>
-                </exclusion>
-				<exclusion>
-					<groupId>ezmorph</groupId>
-					<artifactId>ezmorph</artifactId>
-                </exclusion>
-				<exclusion>
-					<groupId>xom</groupId>
-					<artifactId>xom</artifactId>
-                </exclusion>
-				<exclusion>
-					<groupId>commons-codec</groupId>
-					<artifactId>commons-codec</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>saxon</groupId>
-					<artifactId>saxon</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>saxon</groupId>
-					<artifactId>saxon-dom</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>xmlunit</groupId>
-					<artifactId>xmlunit</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>javax.jms</groupId>
-					<artifactId>jms</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>thoughtworks</groupId>
-					<artifactId>xstream</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.santuario</groupId>
-					<artifactId>xmlsec</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>org.apache.xerces</groupId>
-					<artifactId>xml-apis</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-
-		<dependency>
-			<groupId>io.swagger.parser.v3</groupId>
-			<artifactId>swagger-parser</artifactId>
-			<version>${swagger-parser.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.yaml</groupId>
-			<artifactId>snakeyaml</artifactId>
-		</dependency>
-
-		<!-- Used directly by SoapUIProject / SerializedDataUtils (org.json.JSONObject, JSONArray, JSONException).
-		     Declared explicitly instead of relying on it arriving transitively (it previously leaked in via
-		     SoapUI's bundled telemetry, which is now excluded). -->
-		<dependency>
-			<groupId>org.json</groupId>
-			<artifactId>json</artifactId>
-			<version>${json.version}</version>
-		</dependency>
-
-	</dependencies>
 
 	<repositories>
 		<repository>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <Console name="STDERR" target="SYSTEM_ERR">
+            <PatternLayout pattern="%-5p [%c{1}] %m%n"/>
+            <RegexFilter regex=".*Missing folder.*for external libraries.*" onMatch="DENY" onMismatch="NEUTRAL"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <logger name="com.eviware.soapui" level="${sys:openapi2soapui.cli.logLevel:-WARN}" additivity="false">
+            <AppenderRef ref="STDERR"/>
+        </logger>
+        <logger name="groovy.log" level="${sys:openapi2soapui.cli.logLevel:-WARN}" additivity="false">
+            <AppenderRef ref="STDERR"/>
+        </logger>
+        <logger name="soapui.errorlog" level="${sys:openapi2soapui.cli.logLevel:-WARN}" additivity="false">
+            <AppenderRef ref="STDERR"/>
+        </logger>
+        <Root level="${sys:openapi2soapui.cli.logLevel:-WARN}">
+            <AppenderRef ref="STDERR"/>
+        </Root>
+    </Loggers>
+</Configuration>
