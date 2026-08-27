@@ -49,12 +49,11 @@ public final class Openapi2SoapUICli {
 			return usageError("no input given, pass -f <openapi file> and/or -c <config json>");
 		}
 
-		SoapUILogging.install(cli.isVerbose());
+		SoapUILogging.install();
 
 		try {
 			return generate(cli);
 		} catch (Throwable t) {
-			if (cli.isVerbose()) t.printStackTrace();
 			return error(describe(t));
 		}
 	}
@@ -83,7 +82,7 @@ public final class Openapi2SoapUICli {
 			return EXIT_ERROR;
 		}
 
-		SoapUIProject project = SoapUILogging.withoutStdout(!cli.isVerbose(),
+		SoapUIProject project = SoapUILogging.withoutStdout(
 				() -> new SoapUIProject(request.getApiName(), openAPI, request.getOAuth2Profiles(),
 						request.getHeaders(), request.getTestCaseNames(), request.getReadOnly(),
 						request.getServerPattern(), request.getMinimalEndpoints(), request.getMicrocksHeaders(),

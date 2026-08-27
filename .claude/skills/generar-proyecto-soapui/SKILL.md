@@ -1,51 +1,13 @@
 ---
 name: generar-proyecto-soapui
-description: Enseña cómo generar un proyecto SoapUI en XML a partir de un spec OpenAPI con este repo (openapi2soapui), por sus dos vías — la API HTTP propia y el CLI (`openapi2soapui-cli.jar`) — incluyendo el contrato completo del request (parámetros, defaults, validaciones) y su equivalencia en flags. Úsala cuando el usuario pida generar el proyecto/colección SoapUI con la API o por línea de comandos, llamar al endpoint de openapi2soapui, crear la colección vía API/CLI, o necesite saber qué parámetros/configuración acepta la generación (oAuth2Profiles, headers, customAuthorizationsFile, testCaseNames, flags como readOnly/hasScopes/validateSchema, etc.), incluso si no menciona el nombre exacto del endpoint. NO cubre ejecutar las pruebas generadas con SoapUI TestRunner ni levantar el servicio con Docker — para eso no uses esta skill.
+description: Enseña cómo llamar la API propia de este repo (openapi2soapui) para generar un proyecto SoapUI en XML a partir de un spec OpenAPI, incluyendo el contrato completo del request (parámetros, defaults, validaciones). Úsala cuando el usuario pida generar el proyecto/colección SoapUI con la API, llamar al endpoint de openapi2soapui, crear la colección vía API, o necesite saber qué parámetros/configuración acepta la generación (oAuth2Profiles, headers, customAuthorizationsFile, testCaseNames, flags como readOnly/hasScopes/validateSchema, etc.), incluso si no menciona el nombre exacto del endpoint. NO cubre ejecutar las pruebas generadas con SoapUI TestRunner ni levantar el servicio con Docker — para eso no uses esta skill.
 ---
 
-# Generar proyecto SoapUI con openapi2soapui
+# Generar proyecto SoapUI vía API de openapi2soapui
 
-Esta skill cubre **solo** cómo generar un proyecto SoapUI a partir de un spec OpenAPI con este repo, y qué configuración acepta. No cubre ejecutar el proyecto generado (SoapUI TestRunner) ni levantar el servicio (Docker/Maven) — si el usuario pide eso, es trabajo aparte.
+Esta skill cubre **solo** cómo llamar el endpoint de este repo que genera un proyecto SoapUI a partir de un spec OpenAPI, y qué configuración acepta. No cubre ejecutar el proyecto generado (SoapUI TestRunner) ni levantar el servicio (Docker/Maven) — si el usuario pide eso, es trabajo aparte.
 
-## Elegir la vía: CLI o API
-
-Hay dos front ends sobre el mismo motor. Generan **XML idéntico** con los mismos defaults y las mismas validaciones, así que la tabla de parámetros de más abajo aplica a ambos.
-
-| | CLI (`openapi2soapui-cli.jar`) | API HTTP |
-|---|---|---|
-| Requisitos | El jar y un JRE 21. Nada corriendo | Servicio levantado + URL base confirmada |
-| Spec | Fichero plano JSON/YAML (`-f`) | Base64 dentro del JSON body |
-| Salida | Fichero `.xml` en disco | Body de la respuesta |
-
-**Si el servicio no está levantado y confirmado, prefiere el CLI**: evita el paso 0, el base64 y el manejo de la respuesta HTTP. Usa la API cuando el usuario ya la tiene corriendo o pide explícitamente el endpoint.
-
-### Vía CLI
-
-Construir el jar (si no existe): `mvn clean package -DskipTests` → `openapi2soapui-cli/target/openapi2soapui-cli.jar`.
-
-```bash
-# spec plano + flags, salida en ./output/{apiName}_{apiVersion}-soapui-project.xml
-java -jar openapi2soapui-cli.jar -f archivo.yaml -n MiApi -o ./output
-
-# configuración completa: el MISMO JSON body que la API (openApiSpec en base64)
-java -jar openapi2soapui-cli.jar -c request.json -o proyecto-soapui.xml
-
-# config para lo anidado + spec como fichero plano
-java -jar openapi2soapui-cli.jar -c request.json -f archivo.yaml
-```
-
-Equivalencias con la tabla de parámetros:
-
-- `apiName` → `-n/--api-name` (si no se da, el CLI lo deriva del `info.title` del spec; la API sí lo exige).
-- `openApiSpec` → `-f/--file` (texto plano, sin base64).
-- `headers` → `-H/--header "clave:valor"`, repetible. `testCaseNames` → `--test-case-names a,b`. `serverPattern` → `--server-pattern`. `numberOfScopes` → `--number-of-scopes`.
-- Flags booleanos: `--read-only`, `--minimal-endpoints`, `--microcks-headers`, `--generate-one-of-any-of`, `--schema-is-inline`, `--is-inline`, `--has-scopes`, `--application-token`. Los dos que vienen activados por defecto se apagan con `--no-validate-schema` y `--no-schema-pretty-print`.
-- `oAuth2Profiles`, `customAuthorizationsFile` y `examples` son objetos anidados: **solo por `-c`**, con la misma forma documentada abajo.
-- Exit codes: `0` ok, `1` error de generación/validación, `2` error de uso. Los errores salen por stderr con los mismos códigos de la tabla de diagnóstico (`-v` para la traza completa).
-
-Para la vía API, sigue con el paso 0.
-
-## Paso 0 — obtener la URL base (obligatorio, solo vía API)
+## Paso 0 — obtener la URL base (obligatorio)
 
 La URL base del servicio (host:puerto, ej. `http://localhost:8080`) **nunca se asume**. Si no está ya confirmada en la conversación actual, pregúntala al usuario antes de construir cualquier request. No uses `localhost:8080` por defecto sin que el usuario lo confirme — puede estar corriendo en otro puerto, en Docker con otro mapeo, o en un host remoto.
 
@@ -203,7 +165,7 @@ Cada entrada define un request de bootstrap de autenticación (ej. un fetch de t
 
 ## Nota sobre el spec propio publicado
 
-El propio `api.yaml` del servicio (`openapi2soapui-rest/src/main/resources/static/api.yaml`) tiene un typo conocido en el discriminator `oneOf` de `OAuth2ProfileToGetToken`: el mapping entre `IMPLICIT` y `RESOURCE_OWNER_PASSWORD_CREDENTIALS` está invertido. No afecta la validación real (que corre en Java vía `AuthenticationConditionalValidator`), solo es ruido en esa documentación — no te confundas si lo comparás contra ese YAML.
+El propio `api.yaml` del servicio (`src/main/resources/static/api.yaml`) tiene un typo conocido en el discriminator `oneOf` de `OAuth2ProfileToGetToken`: el mapping entre `IMPLICIT` y `RESOURCE_OWNER_PASSWORD_CREDENTIALS` está invertido. No afecta la validación real (que corre en Java vía `AuthenticationConditionalValidator`), solo es ruido en esa documentación — no te confundas si lo comparás contra ese YAML.
 
 ## Fuera de alcance
 

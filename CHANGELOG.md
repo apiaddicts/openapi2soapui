@@ -6,26 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [2.1.0] - 2026-08-26
-
-### Fixed
-- **OpenAPI/Swagger 2.0 specs can be read again.** Since the Java 21 / Spring Boot 3.5.16 upgrade in 2.0.0, every v2 spec failed (HTTP 500 from the endpoint) with `NoSuchMethodError`, even though v2 has always been advertised as supported. swagger-parser's v2 converter delegates to the Swagger 1.x stack, and SoapUI drags in an older copy of it (`swagger-inflector` 1.0.19 → `swagger-parser` 1.0.54, `swagger-core` 1.6.2) which Maven's nearest-wins resolution preferred; those releases are built against snakeyaml 1.x, removed in the snakeyaml 2.4 that Spring Boot manages. The parent pom now pins that stack to the versions `swagger-compat-spec-parser` 1.0.76 declares (`swagger-parser` 1.0.76, `swagger-core`/`swagger-models`/`swagger-annotations` 1.6.16), which target snakeyaml 2.4. A v2 spec and its v3 equivalent now generate byte for byte the same project; `Swagger2SpecTest` guards both facts. Generation from v3 specs is unaffected.
+## [2.1.0-beta-1] - 2026-08-26
 
 ### Added
-- **Command line interface.** `openapi2soapui-cli.jar` generates a SoapUI project from an OpenAPI spec without starting the service: `java -jar openapi2soapui-cli.jar -f petstore.yaml -o ./output`. It reuses the same engine, the same request model and the same bean validation constraints as the HTTP endpoint, so both produce identical projects (verified against `demo/petstore-ok-only-run`).
-  - `-f`/`--file` takes the spec as plain JSON or YAML; `-c`/`--config` takes the very same JSON body the REST API accepts, `openApiSpec` base64 encoded included, so existing request files work unchanged. When both are given, `-f` provides the spec.
-  - Every scalar parameter has a flag (`--read-only`, `--minimal-endpoints`, `--microcks-headers`, `--generate-one-of-any-of`, `--schema-is-inline`, `--is-inline`, `--has-scopes`, `--application-token`, `--number-of-scopes`, `--server-pattern`, `--test-case-names`, `-H`/`--header`, `--no-validate-schema`, `--no-schema-pretty-print`) and overrides the config file. `oAuth2Profiles`, `customAuthorizationsFile` and `examples` are nested objects, reachable only through `-c`.
-  - Defaults are identical to the HTTP API. The only difference is `apiName`: required by the API, derived from the spec title (or the spec file name) by the CLI when neither `-n` nor the config provide one.
-  - Output defaults to `./output/{apiName}_{apiVersion}-soapui-project.xml`; an `-o` value ending in `.xml` is taken as the exact file. Exit codes: `0` success, `1` generation or validation error, `2` usage error. Errors and SoapUI logs go to stderr, leaving stdout with just the result line.
-  - SoapUI's bundled log4j2 configuration is replaced at runtime (via the `soapui.log4j.config` property), so a run no longer prints DEBUG on stdout nor writes `soapui.log`, `soapui-errors.log` and `global-groovy.log` under `${user.home}/.soapuios/logs`.
+- **Command line interface** (`openapi2soapui-cli.jar`): generates a SoapUI project without starting the service, `java -jar openapi2soapui-cli.jar -f petstore.yaml -o ./out`. Uses the same engine, request model and validations as the endpoint, so both produce identical projects.
+- `-f` takes the spec as plain JSON/YAML and `-c` the same JSON body the REST API accepts (`openApiSpec` in base64), so existing request files work unchanged. Every scalar parameter has a flag; `oAuth2Profiles`, `customAuthorizationsFile` and `examples` are reachable only through `-c`. Defaults match the API, except `apiName`, derived from the spec title when not given.
+- Exit codes `0` success, `1` generation or validation error, `2` usage error. SoapUI's DEBUG output and its log files are silenced, so a run prints one line on stdout and nothing on stderr.
+
+### Fixed
+- **OpenAPI/Swagger 2.0 specs can be read again**, broken since 2.0.0 with `NoSuchMethodError` (HTTP 500 from the endpoint). SoapUI drags in an older Swagger 1.x stack built against snakeyaml 1.x and Maven preferred it; the parent pom now pins that stack to the versions `swagger-compat-spec-parser` 1.0.76 declares. Generation from v3 specs is unaffected.
 
 ### Changed
-- **Split into a Maven multi module build**: `openapi2soapui-core` (conversion engine and request model, free of Spring and of any web dependency), `openapi2soapui-rest` (the HTTP service) and `openapi2soapui-cli`. Java packages are unchanged, so no import in the existing code was touched.
-  - The service artifact is still `openapi2soapui.war` (or `openapi2soapui.jar` with `-Pjar`), now under `openapi2soapui-rest/target/`. The `war`, `jar`, `INTE`, `TEST` and `PROD` profiles behave as before. **Its Maven coordinates change from `net.cloudappi:openapi2soapui` to `net.cloudappi:openapi2soapui-rest`**, and `docker-compose.yml` now points `JAR_FILE` at the new path.
-  - Running the service from the reactor now needs the module: `mvn -pl openapi2soapui-rest -am spring-boot:run`.
-  - `messages.properties` moved to the core module so the HTTP service and the CLI report the same validation messages and codes.
-  - `AuthenticationConditionalValidator` no longer uses Spring's `ObjectUtils.isEmpty`, keeping the core module free of Spring. Behaviour is unchanged, blank but non empty values are still not considered empty.
-  - The engine tests now run with a quiet SoapUI log4j2 configuration instead of flooding the build log with DEBUG.
+- **Split into a Maven multi module build**: `openapi2soapui-core` (conversion engine, free of Spring and of any web dependency), `openapi2soapui-rest` (the HTTP service) and `openapi2soapui-cli`. Java packages are unchanged.
+- The service artifact is still `openapi2soapui.war`, or `openapi2soapui.jar` with `-Pjar`, now under `openapi2soapui-rest/target/`. **Its Maven coordinates change from `net.cloudappi:openapi2soapui` to `net.cloudappi:openapi2soapui-rest`**, `docker-compose.yml` points at the new path, and the service runs from the reactor with `mvn -pl openapi2soapui-rest -am spring-boot:run`.
+- `messages.properties` moved to the core module, so the service and the CLI report the same validation codes and texts.
 
 ## [2.0.0] - 2026-08-25
 

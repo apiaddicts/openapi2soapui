@@ -19,7 +19,7 @@ import org.apiaddicts.apitools.openapi2soapui.request.SoapUIProjectRequest;
 
 final class CliArgs {
 
-	static final String DEFAULT_OUTPUT = "./output";
+	static final String DEFAULT_OUTPUT = "./out";
 
 	private static final String OUTPUT_FILE_SUFFIX = "-soapui-project.xml";
 
@@ -43,7 +43,6 @@ final class CliArgs {
 	private Boolean hasScopes;
 	private Boolean applicationToken;
 	private Integer numberOfScopes;
-	private boolean verbose;
 	private boolean help;
 	private boolean version;
 
@@ -58,7 +57,6 @@ final class CliArgs {
 			switch (option) {
 				case "-h", "--help" -> parsed.help = true;
 				case "-V", "--version" -> parsed.version = true;
-				case "-v", "--verbose" -> parsed.verbose = true;
 				case "-f", "--file" -> parsed.specFile = value(tokens, ++i, option);
 				case "-c", "--config" -> parsed.configFile = value(tokens, ++i, option);
 				case "-o", "--output" -> parsed.output = value(tokens, ++i, option);
@@ -209,10 +207,6 @@ final class CliArgs {
 		return configFile;
 	}
 
-	boolean isVerbose() {
-		return verbose;
-	}
-
 	boolean isHelp() {
 		return help;
 	}
@@ -236,7 +230,7 @@ final class CliArgs {
 
 			Output:
 			  -o, --output <path>         Folder, or a path ending in .xml for an exact file name
-			                              (default: ./output)
+			                              (default: ./out)
 
 			Generation options, they override the config file:
 			  -n, --api-name <name>       apiName (default: the spec title, or the spec file name)
@@ -256,14 +250,13 @@ final class CliArgs {
 			      --no-schema-pretty-print  Serialize the schema compactly (pretty by default)
 
 			Other:
-			  -v, --verbose               Print stack traces and SoapUI logs on stderr
 			  -h, --help                  Show this help
 			  -V, --version               Show the version
 
 			Exit codes: 0 success, 1 generation or validation error, 2 usage error
 
 			Examples:
-			  java -jar openapi2soapui-cli.jar -f petstore.yaml -o ./output
+			  java -jar openapi2soapui-cli.jar -f petstore.yaml -o ./out
 			  java -jar openapi2soapui-cli.jar -f petstore.yaml -n Petstore --read-only
 			  java -jar openapi2soapui-cli.jar -c request.json -o petstore-project.xml
 			  java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml

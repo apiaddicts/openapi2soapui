@@ -207,7 +207,7 @@ $ mvn clean package -DskipTests
 * The jar is produced at `openapi2soapui-cli/target/openapi2soapui-cli.jar`
 
 ```shell
-# generate from a spec file into ./output
+# generate from a spec file into ./out
 $ java -jar openapi2soapui-cli.jar -f petstore.yaml
 
 # name the API and pick the exact output file
@@ -235,10 +235,10 @@ Notes:
 * Defaults match the HTTP API exactly, including `validateSchema` and `schemaPrettyPrint` being enabled unless
   turned off with `--no-validate-schema` / `--no-schema-pretty-print`. `apiName` is the only difference: the
   API requires it, while the CLI derives it from the spec title when neither `-n` nor the config provide one.
-* Output defaults to `./output/{apiName}_{apiVersion}-soapui-project.xml`. An `-o` value ending in `.xml` is
+* Output defaults to `./out/{apiName}_{apiVersion}-soapui-project.xml`. An `-o` value ending in `.xml` is
   taken as the exact file, anything else as a folder.
 * Exit codes: `0` success, `1` generation or validation error, `2` usage error. Errors go to stderr, so stdout
-  only ever carries the result line. Add `-v` for stack traces and SoapUI logs.
+  only ever carries the result line.
 
 ## Files and Directories Structure
 

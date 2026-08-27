@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +22,9 @@ class Openapi2SoapUICliTest {
 
 	private static final String SPEC = "petstore.yaml";
 	private static final String CONFIG = "request.json";
+
+	private static final Pattern SCHEMA_PROPERTY =
+			Pattern.compile("<con:name>schema\\d+</con:name><con:value>(.*?)</con:value>", Pattern.DOTALL);
 
 	@TempDir
 	Path outputDir;
@@ -88,6 +93,26 @@ class Openapi2SoapUICliTest {
 	}
 
 	@Test
+	void validateSchemaAndSchemaPrettyPrintAreOnUnlessTheNoFlagIsGiven() throws Exception {
+		assertEquals(Openapi2SoapUICli.EXIT_OK,
+				run("-f", resource(SPEC), "-n", "Defaults", "-o", outputDir.toString()), stderr());
+		assertEquals(Openapi2SoapUICli.EXIT_OK,
+				run("-f", resource(SPEC), "-n", "NoSchema", "--no-validate-schema", "-o", outputDir.toString()), stderr());
+		assertEquals(Openapi2SoapUICli.EXIT_OK,
+				run("-f", resource(SPEC), "-n", "Compact", "--no-schema-pretty-print", "-o", outputDir.toString()), stderr());
+
+		String defaults = project("Defaults");
+		assertTrue(defaults.contains("GroovyScriptAssertion"),
+				"validateSchema is on by default, the schema assertion must appear with no flag given");
+		assertFalse(project("NoSchema").contains("GroovyScriptAssertion"),
+				"--no-validate-schema must be what removes the schema assertion, not its absence");
+		assertTrue(schemaProperty(defaults).contains("\n"),
+				"schemaPrettyPrint is on by default, the stored schema must be indented with no flag given");
+		assertFalse(schemaProperty(project("Compact")).contains("\n"),
+				"--no-schema-pretty-print must be what compacts the schema, not its absence");
+	}
+
+	@Test
 	void missingSpecFileIsAnError() {
 		int exitCode = run("-f", outputDir.resolve("nope.yaml").toString(), "-o", outputDir.toString());
 
@@ -128,6 +153,16 @@ class Openapi2SoapUICliTest {
 
 	private String resource(String name) throws Exception {
 		return Path.of(getClass().getClassLoader().getResource(name).toURI()).toString();
+	}
+
+	private String project(String apiName) throws Exception {
+		return Files.readString(outputDir.resolve(apiName + "_1.0.0-soapui-project.xml"));
+	}
+
+	private static String schemaProperty(String xml) {
+		Matcher matcher = SCHEMA_PROPERTY.matcher(xml);
+		assertTrue(matcher.find(), "the response schema should be stored as a SoapUI project property");
+		return matcher.group(1);
 	}
 
 	private String stdout() {

@@ -23,9 +23,10 @@ final class SoapUILogging {
 	private SoapUILogging() {
 	}
 
-	static void install(boolean verbose) {
-		System.setProperty(LOG_LEVEL_PROPERTY, verbose ? "DEBUG" : "WARN");
-		System.setProperty(PARSER_LOG_LEVEL_PROPERTY, verbose ? "DEBUG" : "ERROR");
+	static void install() {
+		// -Dopenapi2soapui.cli.logLevel=DEBUG still works as an escape hatch for diagnosing a run
+		if (System.getProperty(LOG_LEVEL_PROPERTY) == null) System.setProperty(LOG_LEVEL_PROPERTY, "WARN");
+		if (System.getProperty(PARSER_LOG_LEVEL_PROPERTY) == null) System.setProperty(PARSER_LOG_LEVEL_PROPERTY, "ERROR");
 
 		if (System.getProperty(LOG4J_CONFIG_PROPERTY) != null) return;
 
@@ -40,8 +41,7 @@ final class SoapUILogging {
 		}
 	}
 
-	static <T> T withoutStdout(boolean mute, Callable<T> action) throws Exception {
-		if (!mute) return action.call();
+	static <T> T withoutStdout(Callable<T> action) throws Exception {
 		PrintStream original = System.out;
 		System.setOut(new PrintStream(OutputStream.nullOutputStream(), true, StandardCharsets.UTF_8));
 		try {
