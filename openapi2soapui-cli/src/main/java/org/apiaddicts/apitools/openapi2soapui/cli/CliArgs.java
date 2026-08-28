@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -22,9 +23,51 @@ final class CliArgs {
 
 	static final String DEFAULT_OUTPUT = "./out";
 
+	static final String USAGE = """
+		openapi2soapui - generates a SoapUI project (XML) from an OpenAPI specification
+
+		Usage: java -jar openapi2soapui-cli.jar [options]
+
+		Input (at least one of -f, -c is required):
+		  -f, --file <path>           OpenAPI spec, JSON or YAML, as plain text (not base64)
+		  -c, --config <path>         JSON file with the same body as the REST API, where
+		                              openApiSpec is base64 encoded. It is the only way to pass
+		                              oAuth2Profiles, customAuthorizationsFile and examples.
+		                              When -f is also given, -f provides the spec.
+
+		Output:
+		  -o, --output <path>         Folder, or a path ending in .xml for an exact file name
+		                              (default: ./out)
+
+		Generation options, they override the config file:
+		  -n, --api-name <name>       apiName (default: the spec title, or the spec file name)
+		  -H, --header <key:value>    Request header, repeatable
+		      --server-pattern <text> Pick the spec server whose URL contains this text
+		      --test-case-names <a,b> Extra test cases, comma separated
+		      --number-of-scopes <n>  numberOfScopes, only relevant with --has-scopes
+		      --read-only             Generate only GET and OPTIONS test cases
+		      --minimal-endpoints     Collapse the ErrorRequired test cases into one
+		      --microcks-headers      Add the X-Microcks-Response-Name header to every request
+		      --generate-one-of-any-of  Resolve oneOf/anyOf using their first candidate
+		      --schema-is-inline      Embed the response schema instead of using a project property
+		      --is-inline             Embed body example values instead of project properties
+		      --has-scopes            One extra test case per oAuth2Profiles entry
+		      --application-token     Extra test case per CLIENT_CREDENTIALS profile
+		      --no-validate-schema    Do not add the schema assertion (on by default)
+		      --no-schema-pretty-print  Serialize the schema compactly (pretty by default)
+
+		Other:
+		  -h, --help                  Show this help
+		  -V, --version               Show the version
+		""";
+
 	private static final String OUTPUT_FILE_SUFFIX = "-soapui-project.xml";
 
 	private static final Pattern UNSAFE_NAME_CHARS = Pattern.compile("[^\\p{L}\\p{N}._-]+");
+
+	private static final Pattern LEADING_DASHES = Pattern.compile("^-+");
+
+	private static final Pattern TRAILING_DASHES = Pattern.compile("-+$");
 
 	private String specFile;
 	private String configFile;
@@ -52,20 +95,20 @@ final class CliArgs {
 
 	static CliArgs parse(String[] args) {
 		CliArgs parsed = new CliArgs();
-		List<String> tokens = normalize(args);
-		for (int i = 0; i < tokens.size(); i++) {
-			String option = tokens.get(i);
+		Tokens tokens = new Tokens(normalize(args));
+		while (tokens.hasNext()) {
+			String option = tokens.next();
 			switch (option) {
 				case "-h", "--help" -> parsed.help = true;
 				case "-V", "--version" -> parsed.version = true;
-				case "-f", "--file" -> parsed.specFile = value(tokens, ++i, option);
-				case "-c", "--config" -> parsed.configFile = value(tokens, ++i, option);
-				case "-o", "--output" -> parsed.output = value(tokens, ++i, option);
-				case "-n", "--api-name" -> parsed.apiName = value(tokens, ++i, option);
-				case "-H", "--header" -> parsed.headers.add(header(value(tokens, ++i, option)));
-				case "--server-pattern" -> parsed.serverPattern = value(tokens, ++i, option);
-				case "--test-case-names" -> parsed.testCaseNames = testCaseNames(value(tokens, ++i, option));
-				case "--number-of-scopes" -> parsed.numberOfScopes = integer(rawValue(tokens, ++i, option), option);
+				case "-f", "--file" -> parsed.specFile = tokens.value(option);
+				case "-c", "--config" -> parsed.configFile = tokens.value(option);
+				case "-o", "--output" -> parsed.output = tokens.value(option);
+				case "-n", "--api-name" -> parsed.apiName = tokens.value(option);
+				case "-H", "--header" -> parsed.headers.add(header(tokens.value(option)));
+				case "--server-pattern" -> parsed.serverPattern = tokens.value(option);
+				case "--test-case-names" -> parsed.testCaseNames = testCaseNames(tokens.value(option));
+				case "--number-of-scopes" -> parsed.numberOfScopes = integer(tokens.rawValue(option), option);
 				case "--read-only" -> parsed.readOnly = Boolean.TRUE;
 				case "--minimal-endpoints" -> parsed.minimalEndpoints = Boolean.TRUE;
 				case "--microcks-headers" -> parsed.microcksHeaders = Boolean.TRUE;
@@ -94,19 +137,6 @@ final class CliArgs {
 			}
 		}
 		return tokens;
-	}
-
-	private static String value(List<String> tokens, int index, String option) {
-		String value = rawValue(tokens, index, option);
-		if (value.length() > 1 && value.startsWith("-")) {
-			throw new UsageException("option " + option + " requires a value, found " + value);
-		}
-		return value;
-	}
-
-	private static String rawValue(List<String> tokens, int index, String option) {
-		if (index >= tokens.size()) throw new UsageException("option " + option + " requires a value");
-		return tokens.get(index);
 	}
 
 	private static Header header(String value) {
@@ -139,24 +169,28 @@ final class CliArgs {
 		SoapUIProjectRequest request = (configFile != null) ? readConfig(configFile) : new SoapUIProjectRequest();
 
 		if (specFile != null) request.setOpenAPIContent(readSpec(specFile));
-
-		if (apiName != null) request.setApiName(apiName);
-		if (serverPattern != null) request.setServerPattern(serverPattern);
-		if (testCaseNames != null) request.setTestCaseNames(testCaseNames);
 		if (!headers.isEmpty()) request.setHeaders(mergeHeaders(request.getHeaders()));
-		if (readOnly != null) request.setReadOnly(readOnly);
-		if (minimalEndpoints != null) request.setMinimalEndpoints(minimalEndpoints);
-		if (microcksHeaders != null) request.setMicrocksHeaders(microcksHeaders);
-		if (generateOneOfAnyOf != null) request.setGenerateOneOfAnyOf(generateOneOfAnyOf);
-		if (validateSchema != null) request.setValidateSchema(validateSchema);
-		if (schemaIsInline != null) request.setSchemaIsInline(schemaIsInline);
-		if (schemaPrettyPrint != null) request.setSchemaPrettyPrint(schemaPrettyPrint);
-		if (isInline != null) request.setIsInline(isInline);
-		if (hasScopes != null) request.setHasScopes(hasScopes);
-		if (applicationToken != null) request.setApplicationToken(applicationToken);
-		if (numberOfScopes != null) request.setNumberOfScopes(numberOfScopes);
+
+		apply(apiName, request::setApiName);
+		apply(serverPattern, request::setServerPattern);
+		apply(testCaseNames, request::setTestCaseNames);
+		apply(readOnly, request::setReadOnly);
+		apply(minimalEndpoints, request::setMinimalEndpoints);
+		apply(microcksHeaders, request::setMicrocksHeaders);
+		apply(generateOneOfAnyOf, request::setGenerateOneOfAnyOf);
+		apply(validateSchema, request::setValidateSchema);
+		apply(schemaIsInline, request::setSchemaIsInline);
+		apply(schemaPrettyPrint, request::setSchemaPrettyPrint);
+		apply(isInline, request::setIsInline);
+		apply(hasScopes, request::setHasScopes);
+		apply(applicationToken, request::setApplicationToken);
+		apply(numberOfScopes, request::setNumberOfScopes);
 
 		return request;
+	}
+
+	private static <T> void apply(T value, Consumer<T> setter) {
+		if (value != null) setter.accept(value);
 	}
 
 	private static SoapUIProjectRequest readConfig(String path) throws IOException {
@@ -196,7 +230,9 @@ final class CliArgs {
 
 	private static String sanitize(String value) {
 		if (value == null || value.isBlank()) return "project";
-		String safe = UNSAFE_NAME_CHARS.matcher(value).replaceAll("-").replaceAll("^-+|-+$", "");
+		String safe = UNSAFE_NAME_CHARS.matcher(value).replaceAll("-");
+		safe = LEADING_DASHES.matcher(safe).replaceAll("");
+		safe = TRAILING_DASHES.matcher(safe).replaceAll("");
 		return safe.isEmpty() ? "project" : safe;
 	}
 
@@ -227,44 +263,36 @@ final class CliArgs {
 		return version;
 	}
 
-	static String usage() {
-		return """
-			openapi2soapui - generates a SoapUI project (XML) from an OpenAPI specification
+	private static final class Tokens {
 
-			Usage: java -jar openapi2soapui-cli.jar [options]
+		private final List<String> tokens;
 
-			Input (at least one of -f, -c is required):
-			  -f, --file <path>           OpenAPI spec, JSON or YAML, as plain text (not base64)
-			  -c, --config <path>         JSON file with the same body as the REST API, where
-			                              openApiSpec is base64 encoded. It is the only way to pass
-			                              oAuth2Profiles, customAuthorizationsFile and examples.
-			                              When -f is also given, -f provides the spec.
+		private int index;
 
-			Output:
-			  -o, --output <path>         Folder, or a path ending in .xml for an exact file name
-			                              (default: ./out)
+		Tokens(List<String> tokens) {
+			this.tokens = tokens;
+		}
 
-			Generation options, they override the config file:
-			  -n, --api-name <name>       apiName (default: the spec title, or the spec file name)
-			  -H, --header <key:value>    Request header, repeatable
-			      --server-pattern <text> Pick the spec server whose URL contains this text
-			      --test-case-names <a,b> Extra test cases, comma separated
-			      --number-of-scopes <n>  numberOfScopes, only relevant with --has-scopes
-			      --read-only             Generate only GET and OPTIONS test cases
-			      --minimal-endpoints     Collapse the ErrorRequired test cases into one
-			      --microcks-headers      Add the X-Microcks-Response-Name header to every request
-			      --generate-one-of-any-of  Resolve oneOf/anyOf using their first candidate
-			      --schema-is-inline      Embed the response schema instead of using a project property
-			      --is-inline             Embed body example values instead of project properties
-			      --has-scopes            One extra test case per oAuth2Profiles entry
-			      --application-token     Extra test case per CLIENT_CREDENTIALS profile
-			      --no-validate-schema    Do not add the schema assertion (on by default)
-			      --no-schema-pretty-print  Serialize the schema compactly (pretty by default)
+		boolean hasNext() {
+			return index < tokens.size();
+		}
 
-			Other:
-			  -h, --help                  Show this help
-			  -V, --version               Show the version
-			""";
+		String next() {
+			return tokens.get(index++);
+		}
+
+		String value(String option) {
+			String value = rawValue(option);
+			if (value.length() > 1 && value.startsWith("-")) {
+				throw new UsageException("option " + option + " requires a value, found " + value);
+			}
+			return value;
+		}
+
+		String rawValue(String option) {
+			if (!hasNext()) throw new UsageException("option " + option + " requires a value");
+			return next();
+		}
 	}
 
 	static final class UsageException extends RuntimeException {

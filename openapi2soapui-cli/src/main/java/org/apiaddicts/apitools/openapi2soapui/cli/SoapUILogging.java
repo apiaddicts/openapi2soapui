@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.Callable;
 
+@SuppressWarnings({"java:S106", "java:S5443"})
 final class SoapUILogging {
 
 	private static final String LOG4J_CONFIG_PROPERTY = "soapui.log4j.config";
@@ -23,8 +24,7 @@ final class SoapUILogging {
 	private SoapUILogging() {
 	}
 
-	static void install() {
-		// -Dopenapi2soapui.cli.logLevel=DEBUG still works as an escape hatch for diagnosing a run
+	static void install() throws IOException {
 		if (System.getProperty(LOG_LEVEL_PROPERTY) == null) System.setProperty(LOG_LEVEL_PROPERTY, "WARN");
 		if (System.getProperty(PARSER_LOG_LEVEL_PROPERTY) == null) System.setProperty(PARSER_LOG_LEVEL_PROPERTY, "ERROR");
 
@@ -36,8 +36,6 @@ final class SoapUILogging {
 			target.toFile().deleteOnExit();
 			Files.copy(config, target, StandardCopyOption.REPLACE_EXISTING);
 			System.setProperty(LOG4J_CONFIG_PROPERTY, target.toAbsolutePath().toString());
-		} catch (IOException e) {
-			System.err.println("warning: could not install the SoapUI logging configuration: " + e.getMessage());
 		}
 	}
 

@@ -13,6 +13,7 @@ import org.apiaddicts.apitools.openapi2soapui.model.SoapUIProject;
 import org.apiaddicts.apitools.openapi2soapui.request.SoapUIProjectRequest;
 import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 
+@SuppressWarnings("java:S106")
 public final class Openapi2SoapUICli {
 
 	static final int EXIT_OK = 0;
@@ -38,7 +39,7 @@ public final class Openapi2SoapUICli {
 		}
 
 		if (cli.isHelp()) {
-			System.out.println(CliArgs.usage());
+			System.out.println(CliArgs.USAGE);
 			return EXIT_OK;
 		}
 		if (cli.isVersion()) {
@@ -49,12 +50,11 @@ public final class Openapi2SoapUICli {
 			return usageError("no input given, pass -f <openapi file> and/or -c <config json>");
 		}
 
-		SoapUILogging.install();
-
 		try {
+			SoapUILogging.install();
 			return generate(cli);
-		} catch (Throwable t) {
-			return error(describe(t));
+		} catch (Exception | LinkageError e) {
+			return error(describe(e));
 		}
 	}
 
@@ -111,7 +111,7 @@ public final class Openapi2SoapUICli {
 	private static int usageError(String message) {
 		System.err.println("error: " + message);
 		System.err.println();
-		System.err.println(CliArgs.usage());
+		System.err.println(CliArgs.USAGE);
 		return EXIT_USAGE;
 	}
 
