@@ -1,7 +1,7 @@
 
 # 🛠️ OpenAPI2SoapUI ![Release](https://img.shields.io/badge/release-0.1.0-purple) ![Swagger](https://img.shields.io/badge/-soap-%23Clojure?style=flat&logo=swagger&logoColor=white) ![Java](https://img.shields.io/badge/java-%23ED8B00.svg?style=flat&logo=openjdk&logoColor=white)  [![License: LGPL v3](https://img.shields.io/badge/license-LGPL_v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0) 
 
-[API](./src/main/resources/static/api.yaml) to generate a SoapUI project from an OpenAPI Specification (fka Swagger Specification)
+[API](./openapi2soapui-rest/src/main/resources/static/api.yaml) to generate a SoapUI project from an OpenAPI Specification (fka Swagger Specification)
 
 Given an OpenAPI Specification, either v2 or v3, a SoapUI project is generated with the _requests_ for each resource operation and a _test suite_. The response is the content of the SoapUI project in XML format to save as file and import into the SoapUI application.
 
@@ -31,7 +31,7 @@ Feel free to drop by and greet us on our GitHub discussion or Discord chat. You 
 
 # ⚙️ Functionalities
 
-[Here](./src/main/resources/static/api.yaml) you can check the definition of the API Swagger to SoapUI
+[Here](./openapi2soapui-rest/src/main/resources/static/api.yaml) you can check the definition of the API Swagger to SoapUI
 
 - Base64 Decoding of Open API Specification Content
 - Parse Open API Specification Content into swagger-core representation as Java POJO
@@ -146,8 +146,11 @@ Alternatively you can use the [Spring Boot Maven plugin](https://docs.spring.io/
 * To build and start the server type
 
 ```shell
-$ mvn spring-boot:run
+$ mvn -pl openapi2soapui-rest -am spring-boot:run
 ```
+
+The HTTP service lives in the `openapi2soapui-rest` module, hence the `-pl`; `-am` also builds the
+`openapi2soapui-core` module it depends on.
 
 * URL to access: **http://localhost:8080/api-openapi-to-soapui/v1/soap-ui-projects**
 
@@ -184,8 +187,138 @@ $ mvn clean package
 $CATALINA_HOME/webapps/openapi2soapui-<version>.war
 ```
 
+The war is produced at `openapi2soapui-rest/target/openapi2soapui.war`.
+
 * Restart Tomcat Server
 * URL to access: **http://localhost:8080/openapi2soapui/api-openapi-to-soapui/v1/soap-ui-projects**
+
+## 🖥️ Command line interface (CLI)
+
+The same generation is available as a standalone command, with no server involved: an OpenAPI spec in JSON or
+YAML goes in, the SoapUI project XML comes out. It reuses the exact same engine, request model and validations
+as the HTTP service, so both produce identical projects.
+
+### Build
+
+```shell
+$ mvn clean package -DskipTests
+```
+
+The jar is produced at `openapi2soapui-cli/target/openapi2soapui-cli.jar`
+
+### Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `-f`, `--file <path>` | — | OpenAPI spec, v2 or v3, JSON or YAML, as plain text |
+| `-c`, `--config <path>` | — | JSON file with the same body as the REST API, `openApiSpec` base64 encoded. The only way to pass `oAuth2Profiles`, `customAuthorizationsFile` and `examples`. With `-f`, the spec comes from `-f` |
+| `-o`, `--output <path>` | `./out` | Folder, or a path ending in `.xml` for an exact file name |
+| `-n`, `--api-name <name>` | spec title, or spec file name | `apiName` |
+| `-H`, `--header <key:value>` | none | Request header, repeatable, appended to the config's |
+| `--server-pattern <text>` | first server in the spec | Pick the spec server whose URL contains this text. Accepts the `%text%` form too |
+| `--test-case-names <a,b>` | none | Extra test cases, comma separated |
+| `--number-of-scopes <n>` | `0` | `numberOfScopes`, only relevant with `--has-scopes` |
+| `--read-only` | off | Generate only GET and OPTIONS test cases |
+| `--minimal-endpoints` | off | Collapse the `CaseErrorRequired{Field}` test cases into one |
+| `--microcks-headers` | off | Add the `X-Microcks-Response-Name` header to every request |
+| `--generate-one-of-any-of` | off | Resolve `oneOf`/`anyOf` using their first candidate |
+| `--schema-is-inline` | off | Embed the response schema instead of using a project property |
+| `--is-inline` | off | Embed body example values instead of project properties |
+| `--has-scopes` | off | One extra test case per `oAuth2Profiles` entry |
+| `--application-token` | off | Extra test case per `CLIENT_CREDENTIALS` profile |
+| `--no-validate-schema` | schema assertion **on** | Do not add the schema assertion |
+| `--no-schema-pretty-print` | pretty print **on** | Serialize the schema compactly |
+| `-h`, `--help` | — | Show the help |
+| `-V`, `--version` | — | Show the version |
+
+Every option also accepts the `--option=value` form.
+
+### Commands
+
+Show the available options, and the build version.
+
+```shell
+$ java -jar openapi2soapui-cli.jar --help
+$ java -jar openapi2soapui-cli.jar --version
+```
+
+Generate a project. Without `-o` it lands in `./out`, named `{apiName}_{apiVersion}-soapui-project.xml`;
+an `-o` value ending in `.xml` is taken as the exact file.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -n Orders -o ./projects
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -n Orders -o ./orders.xml
+```
+
+Narrow down what gets generated: `--read-only` keeps only the GET and OPTIONS cases, `--minimal-endpoints`
+collapses the `CaseErrorRequired` ones, and `--test-case-names` adds a copy of the happy path under each name.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --read-only
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --minimal-endpoints
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --test-case-names Smoke,Regression
+```
+
+Send the same headers with every request. `-H` is repeatable; `--microcks-headers` adds the
+`X-Microcks-Response-Name` header a Microcks mock expects.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -H "Authorization:Bearer <token>" -H "X-Correlation-Id:qa-42"
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --microcks-headers
+```
+
+Control the response schema assertion, which is added by default: drop it, embed the schema in the script
+instead of storing it as a project property, or serialize it compactly.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --no-validate-schema
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --schema-is-inline
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --no-schema-pretty-print
+```
+
+Write the request body example values literally, instead of referencing project properties.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --is-inline
+```
+
+Target one environment when the spec declares several servers. The value is matched as a substring, so
+`%staging%` works too.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --server-pattern staging
+```
+
+Resolve `oneOf` and `anyOf` bodies using their first candidate, instead of leaving a plain placeholder.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --generate-one-of-any-of
+```
+
+Pass the full configuration. `-c` takes the same JSON body the REST API accepts, and is the only way to
+provide `oAuth2Profiles`, `customAuthorizationsFile` and `examples`. Add `-f` to read the spec from a plain
+file instead of the base64 `openApiSpec` the config carries.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -c request.json
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml
+```
+
+Generate the OAuth2 scope variants once the profiles are in place.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml --has-scopes --number-of-scopes 2
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml --has-scopes --application-token
+```
+
+Any supported input works the same way: OpenAPI 3 or Swagger 2.0, written in YAML or JSON.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore-v2.yaml
+$ java -jar openapi2soapui-cli.jar -f petstore.json
+```
+
 ## Files and Directories Structure
 
 The project directory has a particular directory structure. A representative project is shown below:
@@ -194,55 +327,59 @@ The project directory has a particular directory structure. A representative pro
 
 ```text
 .
-├── src
-│   └── main
-│       └── java
-│           ├── org.apiaddicts.apitools.openapi2soapui
-│           │ 
-│           ├── org.apiaddicts.apitools.openapi2soapui.config
-│           │  
-│           ├── org.apiaddicts.apitools.openapi2soapui.constants
-│           │ 
-│           ├── org.apiaddicts.apitools.openapi2soapui.controller
-│           │ 
-│           ├── org.apiaddicts.apitools.openapi2soapui.error
-│           ├── org.apiaddicts.apitools.openapi2soapui.error.exceptions
-│           ├── org.apiaddicts.apitools.openapi2soapui.error.validators
-│           │     
-│           ├── org.apiaddicts.apitools.openapi2soapui.model
-│           │
-│           ├── org.apiaddicts.apitools.openapi2soapui.request
-│           │
-│           ├── org.apiaddicts.apitools.openapi2soapui.service
-│           │
-│           └── org.apiaddicts.apitools.openapi2soapui.util
-├── src
-│   └── main
+├── pom.xml                                     parent: packaging pom, shared properties and profiles
+├── openapi2soapui-core                         the conversion engine, no Spring and no web
+│   └── src/main
+│       ├── java/org.apiaddicts.apitools.openapi2soapui
+│       │   ├── .constants
+│       │   ├── .error.exceptions
+│       │   ├── .error.validators
+│       │   ├── .model                          SoapUIProject, the engine itself
+│       │   ├── .request                        request model shared by both front ends
+│       │   └── .util
 │       └── resources
-│           ├── static
-│           │   └── api.yaml
-│           │   
-│           ├── application.properties
-│           ├── log4j.properties
 │           └── messages.properties
-├── JRE System Library
-├── Maven Dependencies
-├── src
-├── target
-│   └──openapi2soapui-1.0.2
-├── .gitlab-ci.yaml
+├── openapi2soapui-rest                         the HTTP service (war by default, jar with -Pjar)
+│   └── src/main
+│       ├── java/org.apiaddicts.apitools.openapi2soapui
+│       │   ├── (Openapi2SoapUIApplication)
+│       │   ├── .config
+│       │   ├── .controller
+│       │   ├── .error                          HTTP error payload and controller advice
+│       │   ├── .service
+│       │   └── .util
+│       └── resources
+│           ├── static/api.yaml
+│           ├── application.properties
+│           ├── banner.txt
+│           └── log4j.properties
+├── openapi2soapui-cli                          the standalone command line jar
+│   └── src/main
+│       ├── java/org.apiaddicts.apitools.openapi2soapui.cli
+│       └── resources
+│           ├── cli.properties                  version reported by the version flag
+│           ├── logback.xml
+│           └── soapui-cli-log4j.xml            keeps SoapUI from flooding stdout
 ├── lombok.config
 ├── mvnw
 ├── mvnw.cmd
-├── pom.xml
 └── README.md
 ```
+
+### Modules
+
+* 	`openapi2soapui-core` - the conversion engine and the request model. Deliberately free of Spring and of any
+	web dependency, so the CLI can embed it without booting an application context;
+* 	`openapi2soapui-rest` - the HTTP service. Produces `openapi2soapui.war` by default and
+	`openapi2soapui.jar` with `-Pjar`;
+* 	`openapi2soapui-cli` - the command line front end. Produces `openapi2soapui-cli.jar`;
 
 ### Packages
 
 * 	`config` - app configurations;
 * 	`constants` - app contants;
 * 	`controller` - listen to the client;
+* 	`cli` - command line front end;
 * 	`error` - manage errors;
 * 	`exceptions` - custom exception handling;
 * 	`validators` - custom validations;
@@ -258,7 +395,7 @@ The project directory has a particular directory structure. A representative pro
 * 	`resources/static/api.yaml` - contains Open API Specification.
 * 	`resources/application.properties` - contains application-wide properties. Spring reads the properties defined in this file to configure your application. You can define server’s default port, server’s context path, database URLs etc, in this file.
 * 	`resources/log4j.properties` - contains contains the entire runtime configuration used by log4j. This file will contain log4j appenders information, log level information and output file names for file appenders.
-* 	`resources/messages.properties` - contains the error messages used in the application.
+* 	`resources/messages.properties` - contains the error messages used in the application. It lives in the core module because both the HTTP service and the CLI report the same validation messages from it.
 * mvnw / mvnw.cmd - This allows you to run the Maven project without having Maven installed and present in the path. Download the correct version of Maven if it can't be found (as far as I know by default in your user home directory). The mvnw file is for Linux (bash) and mvnw.cmd is for the Windows environment.
 * 	`pom.xml` - contains all the project dependencies
 
@@ -282,7 +419,7 @@ $CATALINA_HOME/webapps/openapi2soapui.war
 ## Documentation
 
 - [cURL Example](example.sh)
-- [Open API Specification](./src/main/resources/static/api.yaml)
+- [Open API Specification](./openapi2soapui-rest/src/main/resources/static/api.yaml)
 - [Swagger UI](http://localhost:8080/swagger-ui.html) - `http://localhost:8080/swagger-ui.html`
 - Find Java Doc in **javadoc** folder
 - Java Doc is generated in ./target/site/apidocs` folder using the Maven command 

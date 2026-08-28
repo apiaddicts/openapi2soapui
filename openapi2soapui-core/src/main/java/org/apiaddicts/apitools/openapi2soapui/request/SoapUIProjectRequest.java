@@ -1,0 +1,84 @@
+package org.apiaddicts.apitools.openapi2soapui.request;
+
+import java.util.List;
+import java.util.Set;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+
+import lombok.Getter;
+import lombok.Setter;
+import org.apiaddicts.apitools.openapi2soapui.util.SwaggerContentDeserializer;
+
+@Getter
+@Setter
+public class SoapUIProjectRequest {
+
+	@NotEmpty(message = "{validation.notEmpty.apiName}")
+	@JsonProperty("apiName")
+	private String apiName;
+
+	@Valid
+	@JsonProperty("oAuth2Profiles")
+    private List<OAuth2Profile> oAuth2Profiles;
+
+	@JsonProperty("openApiSpec")
+	@NotEmpty(message = "{validation.notEmpty.openApiSpec}")
+    @JsonDeserialize(using = SwaggerContentDeserializer.class)
+    private String openAPIContent;
+
+	@Valid
+	@JsonProperty("testCaseNames")
+	private Set<@NotEmpty(message = "{validation.notEmpty.testCaseNames.item}") String> testCaseNames;
+
+	@Valid
+	@JsonProperty("headers")
+	private List<Header> headers;
+
+	@Valid
+	@JsonProperty("customAuthorizationsFile")
+	private List<CustomAuthorizationRequest> customAuthorizationsFile;
+
+	@JsonProperty("readOnly")
+	private Boolean readOnly;
+
+	@JsonProperty("serverPattern")
+	private String serverPattern;
+
+	@JsonProperty("minimalEndpoints")
+	private Boolean minimalEndpoints;
+
+	@JsonProperty("microcksHeaders")
+	private Boolean microcksHeaders;
+
+	@JsonProperty("generateOneOfAnyOf")
+	private Boolean generateOneOfAnyOf;
+
+	@JsonProperty("validateSchema")
+	private Boolean validateSchema;
+
+	@JsonProperty("schemaIsInline")
+	private Boolean schemaIsInline;
+
+	@JsonProperty("schemaPrettyPrint")
+	private Boolean schemaPrettyPrint;
+
+	@JsonProperty("isInline")
+	private Boolean isInline;
+
+	@JsonProperty("hasScopes")
+	private Boolean hasScopes;
+
+	@JsonProperty("applicationToken")
+	private Boolean applicationToken;
+
+	@JsonProperty("numberOfScopes")
+	private Integer numberOfScopes;
+
+	@Valid
+	@JsonProperty("examples")
+	private ExamplesConfig examples;
+}
