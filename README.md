@@ -195,58 +195,135 @@ The war is produced at `openapi2soapui-rest/target/openapi2soapui.war`.
 ## 🖥️ Command line interface (CLI)
 
 The same generation is available as a standalone command, with no server involved: an OpenAPI spec in JSON or
-YAML goes in, the SoapUI project XML comes out. It reuses the exact same engine and the same request model as
-the HTTP service, so both produce identical projects.
+YAML goes in, the SoapUI project XML comes out. It reuses the exact same engine, request model and validations
+as the HTTP service, so both produce identical projects.
 
-* To build the CLI jar
+### Build
 
 ```shell
 $ mvn clean package -DskipTests
 ```
 
-* The jar is produced at `openapi2soapui-cli/target/openapi2soapui-cli.jar`
+The jar is produced at `openapi2soapui-cli/target/openapi2soapui-cli.jar`
+
+### Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `-f`, `--file <path>` | — | OpenAPI spec, v2 or v3, JSON or YAML, as plain text |
+| `-c`, `--config <path>` | — | JSON file with the same body as the REST API, `openApiSpec` base64 encoded. The only way to pass `oAuth2Profiles`, `customAuthorizationsFile` and `examples`. With `-f`, the spec comes from `-f` |
+| `-o`, `--output <path>` | `./out` | Folder, or a path ending in `.xml` for an exact file name |
+| `-n`, `--api-name <name>` | spec title, or spec file name | `apiName` |
+| `-H`, `--header <key:value>` | none | Request header, repeatable, appended to the config's |
+| `--server-pattern <text>` | first server in the spec | Pick the spec server whose URL contains this text. Accepts the `%text%` form too |
+| `--test-case-names <a,b>` | none | Extra test cases, comma separated |
+| `--number-of-scopes <n>` | `0` | `numberOfScopes`, only relevant with `--has-scopes` |
+| `--read-only` | off | Generate only GET and OPTIONS test cases |
+| `--minimal-endpoints` | off | Collapse the `CaseErrorRequired{Field}` test cases into one |
+| `--microcks-headers` | off | Add the `X-Microcks-Response-Name` header to every request |
+| `--generate-one-of-any-of` | off | Resolve `oneOf`/`anyOf` using their first candidate |
+| `--schema-is-inline` | off | Embed the response schema instead of using a project property |
+| `--is-inline` | off | Embed body example values instead of project properties |
+| `--has-scopes` | off | One extra test case per `oAuth2Profiles` entry |
+| `--application-token` | off | Extra test case per `CLIENT_CREDENTIALS` profile |
+| `--no-validate-schema` | schema assertion **on** | Do not add the schema assertion |
+| `--no-schema-pretty-print` | pretty print **on** | Serialize the schema compactly |
+| `-h`, `--help` | — | Show the help |
+| `-V`, `--version` | — | Show the version |
+
+Every option also accepts the `--option=value` form.
+
+### Commands
+
+Show the available options, and the build version.
 
 ```shell
-# generate from a spec file into ./out
-$ java -jar openapi2soapui-cli.jar -f petstore.yaml
-
-# name the API and pick the exact output file
-$ java -jar openapi2soapui-cli.jar -f petstore.yaml -n Petstore -o ./petstore-project.xml
-
-# only GET and OPTIONS test cases, with a custom header
-$ java -jar openapi2soapui-cli.jar -f petstore.yaml --read-only -H "X-Api-Key:secret"
-
-# full configuration: the very same JSON body the REST API takes, openApiSpec included as base64
-$ java -jar openapi2soapui-cli.jar -c request.json
-
-# config file for everything else, spec as a plain file
-$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml
-
 $ java -jar openapi2soapui-cli.jar --help
+$ java -jar openapi2soapui-cli.jar --version
 ```
 
-Notes:
+Generate a project. Without `-o` it lands in `./out`, named `{apiName}_{apiVersion}-soapui-project.xml`;
+an `-o` value ending in `.xml` is taken as the exact file.
 
-* `-f` takes the spec as plain text; `-c` takes the REST API body, where `openApiSpec` is base64 encoded, so
-  an existing request such as [demo/petstore-ok-only-run/request.json](demo/petstore-ok-only-run/request.json)
-  works as is. When both are given, `-f` provides the spec.
-* `oAuth2Profiles`, `customAuthorizationsFile` and `examples` are nested objects and are only reachable
-  through `-c`. Every other parameter has a flag, listed by `--help`.
-* Defaults match the HTTP API exactly, including `validateSchema` and `schemaPrettyPrint` being enabled unless
-  turned off with `--no-validate-schema` / `--no-schema-pretty-print`. `apiName` is the only difference: the
-  API requires it, while the CLI derives it from the spec title when neither `-n` nor the config provide one.
-* Output defaults to `./out/{apiName}_{apiVersion}-soapui-project.xml`. An `-o` value ending in `.xml` is
-  taken as the exact file, anything else as a folder.
-* Exit codes: `0` success, `1` generation or validation error, `2` usage error. Errors go to stderr, so stdout
-  only ever carries the result line.
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -n Orders -o ./projects
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -n Orders -o ./orders.xml
+```
+
+Narrow down what gets generated: `--read-only` keeps only the GET and OPTIONS cases, `--minimal-endpoints`
+collapses the `CaseErrorRequired` ones, and `--test-case-names` adds a copy of the happy path under each name.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --read-only
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --minimal-endpoints
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --test-case-names Smoke,Regression
+```
+
+Send the same headers with every request. `-H` is repeatable; `--microcks-headers` adds the
+`X-Microcks-Response-Name` header a Microcks mock expects.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml -H "Authorization:Bearer <token>" -H "X-Correlation-Id:qa-42"
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --microcks-headers
+```
+
+Control the response schema assertion, which is added by default: drop it, embed the schema in the script
+instead of storing it as a project property, or serialize it compactly.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --no-validate-schema
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --schema-is-inline
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --no-schema-pretty-print
+```
+
+Write the request body example values literally, instead of referencing project properties.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --is-inline
+```
+
+Target one environment when the spec declares several servers. The value is matched as a substring, so
+`%staging%` works too.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --server-pattern staging
+```
+
+Resolve `oneOf` and `anyOf` bodies using their first candidate, instead of leaving a plain placeholder.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore.yaml --generate-one-of-any-of
+```
+
+Pass the full configuration. `-c` takes the same JSON body the REST API accepts, and is the only way to
+provide `oAuth2Profiles`, `customAuthorizationsFile` and `examples`. Add `-f` to read the spec from a plain
+file instead of the base64 `openApiSpec` the config carries.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -c request.json
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml
+```
+
+Generate the OAuth2 scope variants once the profiles are in place.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml --has-scopes --number-of-scopes 2
+$ java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml --has-scopes --application-token
+```
+
+Any supported input works the same way: OpenAPI 3 or Swagger 2.0, written in YAML or JSON.
+
+```shell
+$ java -jar openapi2soapui-cli.jar -f petstore-v2.yaml
+$ java -jar openapi2soapui-cli.jar -f petstore.json
+```
 
 ## Files and Directories Structure
 
 The project directory has a particular directory structure. A representative project is shown below:
 
 ### Project Structure
-
-The build is a Maven multi module project: the conversion engine is shared by the HTTP service and the CLI.
 
 ```text
 .
@@ -283,9 +360,6 @@ The build is a Maven multi module project: the conversion engine is shared by th
 │           ├── cli.properties                  version reported by the version flag
 │           ├── logback.xml
 │           └── soapui-cli-log4j.xml            keeps SoapUI from flooding stdout
-├── demo                                        sample specs, requests and generated projects
-├── Dockerfile
-├── docker-compose.yml
 ├── lombok.config
 ├── mvnw
 ├── mvnw.cmd

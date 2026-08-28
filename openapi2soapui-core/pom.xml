@@ -272,9 +272,6 @@
 			<artifactId>snakeyaml</artifactId>
 		</dependency>
 
-		<!-- Used directly by SoapUIProject / SerializedDataUtils (org.json.JSONObject, JSONArray, JSONException).
-		     Declared explicitly instead of relying on it arriving transitively (it previously leaked in via
-		     SoapUI's bundled telemetry, which is now excluded). -->
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
