@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import io.swagger.v3.oas.models.media.ArraySchema;
 import io.swagger.v3.oas.models.media.BooleanSchema;
@@ -163,19 +165,7 @@ class QueryParamExampleUtilsTest {
 		assertEquals("desc", QueryParamExampleUtils.validValue(schema, null));
 	}
 
-	@Test
-	void validValue_returnsIsoDateTime_forDateTimeFormattedString() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("date-time");
-		assertEquals("2024-01-01T00:00:00Z", QueryParamExampleUtils.validValue(schema, null));
-	}
 
-	@Test
-	void invalidValue_setsInvalidMonth_forDateTimeFormattedString() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("date-time");
-		assertEquals("2024-50-01T00:00:00Z", QueryParamExampleUtils.invalidValue(schema, null));
-	}
 
 	@Test
 	void invalidValue_setsInvalidMonth_forDateTimeFormattedStringWithExample() {
@@ -185,12 +175,6 @@ class QueryParamExampleUtilsTest {
 		assertEquals("2025-50-15T10:30:00Z", QueryParamExampleUtils.invalidValue(schema, null));
 	}
 
-	@Test
-	void validValue_returnsRealisticValue_forEmailFormat() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("email");
-		assertEquals("user@example.com", QueryParamExampleUtils.validValue(schema, null));
-	}
 
 	@Test
 	void invalidValue_hasNoAtSign_forEmailFormat() {
@@ -199,47 +183,11 @@ class QueryParamExampleUtilsTest {
 		assertTrue(!QueryParamExampleUtils.invalidValue(schema, null).contains("@"));
 	}
 
-	@Test
-	void validValue_returnsRealisticValue_forUriFormat() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("uri");
-		assertEquals("https://example.com", QueryParamExampleUtils.validValue(schema, null));
-	}
 
-	@Test
-	void validValue_returnsRealisticValue_forUuidFormat() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("uuid");
-		assertEquals("3fa85f64-5717-4562-b3fc-2c963f66afa6", QueryParamExampleUtils.validValue(schema, null));
-	}
 
-	@Test
-	void invalidValue_isNotUuidShaped_forUuidFormat() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("uuid");
-		assertEquals("not-a-valid-uuid", QueryParamExampleUtils.invalidValue(schema, null));
-	}
 
-	@Test
-	void validValue_returnsRealisticValue_forIpv4Format() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("ipv4");
-		assertEquals("192.0.2.1", QueryParamExampleUtils.validValue(schema, null));
-	}
 
-	@Test
-	void invalidValue_hasOutOfRangeOctets_forIpv4Format() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("ipv4");
-		assertEquals("999.999.999.999", QueryParamExampleUtils.invalidValue(schema, null));
-	}
 
-	@Test
-	void validValue_returnsRealisticValue_forByteFormat() {
-		StringSchema schema = new StringSchema();
-		schema.setFormat("byte");
-		assertEquals("SGVsbG8gV29ybGQ=", QueryParamExampleUtils.validValue(schema, null));
-	}
 
 	@Test
 	void formatAwareness_stillYieldsToExplicitExample() {
@@ -368,4 +316,32 @@ class QueryParamExampleUtilsTest {
 	void invalidValue_isNotUuidShaped_forUuidSchemaSubtype() {
 		assertEquals("not-a-valid-uuid", QueryParamExampleUtils.invalidValue(new UUIDSchema(), null));
 	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"date-time, 2024-01-01T00:00:00Z",
+			"email,     user@example.com",
+			"uri,       https://example.com",
+			"uuid,      3fa85f64-5717-4562-b3fc-2c963f66afa6",
+			"ipv4,      192.0.2.1",
+			"byte,      SGVsbG8gV29ybGQ="
+	})
+	void validValue_returnsRealisticValue_forFormat(String format, String expected) {
+		StringSchema schema = new StringSchema();
+		schema.setFormat(format);
+		assertEquals(expected, QueryParamExampleUtils.validValue(schema, null));
+	}
+
+	@ParameterizedTest
+	@CsvSource({
+			"date-time, 2024-50-01T00:00:00Z",
+			"uuid,      not-a-valid-uuid",
+			"ipv4,      999.999.999.999"
+	})
+	void invalidValue_returnsRecognizablyInvalidValue_forFormat(String format, String expected) {
+		StringSchema schema = new StringSchema();
+		schema.setFormat(format);
+		assertEquals(expected, QueryParamExampleUtils.invalidValue(schema, null));
+	}
+
 }

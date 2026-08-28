@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.models.OpenAPI;
 
-import org.springframework.beans.factory.annotation.Autowired;
 
 import org.apiaddicts.apitools.openapi2soapui.error.exceptions.APIVersionNotFoundException;
 import org.apiaddicts.apitools.openapi2soapui.model.SoapUIProject;
@@ -25,8 +24,7 @@ import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
 @RequestMapping("${basepath}")
 public class SoapUIProjectController {
 
-	@Autowired
-    private SoapUIProjectService soapUIProjectService;
+    private final SoapUIProjectService soapUIProjectService;
 	
 	@PostMapping(value = "soap-ui-projects", consumes = "application/json", produces = "application/xml")
     public String newSoapUIProject(@Valid @RequestBody SoapUIProjectRequest newSoapUIProject) throws Exception {

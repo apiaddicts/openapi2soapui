@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -101,47 +103,8 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.andExpect(content().string(not(containsString("authorizations_TestApi_1.0-Suite"))));
 	}
 
-	@Test
-	void customAuthorizationMissingName_returns400WithValidationErrorCode1501() throws Exception {
-		Map<String, Object> customAuthorization = validCustomAuthorization("Application token");
-		customAuthorization.remove("name");
-		Map<String, Object> body = baseRequestBody();
-		body.put("customAuthorizationsFile", List.of(customAuthorization));
 
-		mockMvc.perform(post(basePath + "/soap-ui-projects")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(body)))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.result.errors[0].errorCode").value(1501));
-	}
 
-	@Test
-	void customAuthorizationMissingMethod_returns400WithValidationErrorCode1502() throws Exception {
-		Map<String, Object> customAuthorization = validCustomAuthorization("Application token");
-		customAuthorization.remove("method");
-		Map<String, Object> body = baseRequestBody();
-		body.put("customAuthorizationsFile", List.of(customAuthorization));
-
-		mockMvc.perform(post(basePath + "/soap-ui-projects")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(body)))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.result.errors[0].errorCode").value(1502));
-	}
-
-	@Test
-	void customAuthorizationMissingEndpoint_returns400WithValidationErrorCode1503() throws Exception {
-		Map<String, Object> customAuthorization = validCustomAuthorization("Application token");
-		customAuthorization.remove("endpoint");
-		Map<String, Object> body = baseRequestBody();
-		body.put("customAuthorizationsFile", List.of(customAuthorization));
-
-		mockMvc.perform(post(basePath + "/soap-ui-projects")
-				.contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(body)))
-				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.result.errors[0].errorCode").value(1503));
-	}
 
 	@Test
 	void customAuthorizationInvalidMethod_returns400WithValidationErrorCode1504() throws Exception {
@@ -225,4 +188,21 @@ class SoapUIProjectControllerCustomAuthorizationsFileTest {
 				.andExpect(content().string(containsString("grant_type=client_credentials")))
 				.andExpect(content().string(containsString("abc123")));
 	}
+
+	@ParameterizedTest
+	@CsvSource({"name, 1501", "method, 1502", "endpoint, 1503"})
+	void customAuthorizationMissingRequiredField_returns400WithItsValidationErrorCode(String field, int errorCode)
+			throws Exception {
+		Map<String, Object> customAuthorization = validCustomAuthorization("Application token");
+		customAuthorization.remove(field);
+		Map<String, Object> body = baseRequestBody();
+		body.put("customAuthorizationsFile", List.of(customAuthorization));
+
+		mockMvc.perform(post(basePath + "/soap-ui-projects")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(body)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.result.errors[0].errorCode").value(errorCode));
+	}
+
 }

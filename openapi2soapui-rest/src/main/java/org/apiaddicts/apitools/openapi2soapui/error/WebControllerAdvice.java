@@ -4,7 +4,6 @@ import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.List;
 import java.util.ResourceBundle;
-import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 
@@ -79,14 +78,14 @@ public class WebControllerAdvice {
 	@ResponseStatus(HttpStatus.BAD_REQUEST)
 	public Result handleHttpMessageNotReadableException(HttpMessageNotReadableException ex) {
 		log.warn("HttpMessageNotReadableException", ex);
-		if (ex.getRootCause() instanceof CreateEnumInstanceException) {
-			return handleCreateEnumInstanceException((CreateEnumInstanceException) ex.getRootCause());
-		} else if (ex.getRootCause() instanceof SwaggerContentEmptyException) {
-			return handleSwaggerContentEmptyException((SwaggerContentEmptyException) ex.getRootCause());
+		if (ex.getRootCause() instanceof CreateEnumInstanceException cause) {
+			return handleCreateEnumInstanceException(cause);
+		} else if (ex.getRootCause() instanceof SwaggerContentEmptyException cause) {
+			return handleSwaggerContentEmptyException(cause);
 		} else if (ex.getRootCause() instanceof DecodeBase64Exception || ex.getRootCause() instanceof SwaggerInvalidContentException) {
 			return handleSwaggerContentException((RuntimeException) ex.getRootCause());
-		} else if (ex.getMostSpecificCause() instanceof MismatchedInputException) {
-			return handleMismatchedInputException((MismatchedInputException) ex.getMostSpecificCause());
+		} else if (ex.getMostSpecificCause() instanceof MismatchedInputException cause) {
+			return handleMismatchedInputException(cause);
 		} else {
 			log.debug("Unhandle HttpMessageNotReadableException", ex);
 			Result result = new Result();
@@ -159,7 +158,7 @@ public class WebControllerAdvice {
 		result.setResponseCode(0);
 		List<ObjectError> errors = ex.getBindingResult().getFieldErrors().stream()
 				.map(fe -> new ObjectError(BAD_REQUEST, fe.getDefaultMessage()))
-				.collect(Collectors.toList());
+				.toList();
 		result.addValidationError(errors);
 		return result;
 	}

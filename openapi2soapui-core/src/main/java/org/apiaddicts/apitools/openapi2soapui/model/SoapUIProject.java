@@ -292,9 +292,7 @@ public class SoapUIProject {
 			Optional<Server> match = servers.stream()
 					.filter(s -> s.getUrl().contains(cleanPattern))
 					.findFirst();
-			filtered = match.isPresent()
-					? Collections.singletonList(match.get())
-					: Collections.singletonList(servers.get(0));
+			filtered = Collections.singletonList(match.orElseGet(() -> servers.get(0)));
 		} else {
 			filtered = Collections.singletonList(servers.get(0));
 		}
@@ -841,9 +839,9 @@ public class SoapUIProject {
 	 */
 	private String mapObjectToJsonString(Object object, boolean prettyPrint) {
 		String jsonString = null;
-		if (object instanceof JSONObject) {
+		if (object instanceof JSONObject json) {
 			try {
-				jsonString = prettyPrint ? ((JSONObject) object).toString(2) : ((JSONObject) object).toString();
+				jsonString = prettyPrint ? json.toString(2) : json.toString();
 			} catch (JSONException e) {
 				log.debug("Error mapObjectToJsonString", e);
 			}
@@ -851,7 +849,7 @@ public class SoapUIProject {
 			ObjectMapper mapper = new ObjectMapper();
 			try {
 				jsonString = prettyPrint
-						? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object).replaceAll("\\r", "")
+						? mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object).replace("\r", "")
 						: mapper.writeValueAsString(object);
 			} catch (JsonProcessingException e) {
 				log.debug("Error mapObjectToJsonString", e);
@@ -944,8 +942,10 @@ public class SoapUIProject {
 	 */
 	private void setAuthProfile(org.apiaddicts.apitools.openapi2soapui.request.OAuth2Profile oAuth2Profile) {
 		if (oAuth2Profile.getGrantType() != null) {
-			OAuth2Flow oAuth2Flow = (oAuth2Profile.getGrantType().equals(GrantType.RESOURCE_OWNER_PASSWORD_CREDENTIALS))
-					? OAuth2Flow.valueOf(oAuth2Profile.getGrantType().getText()) : OAuth2Flow.valueOf(oAuth2Profile.getGrantType().getText()+"_GRANT");
+			String grantType = oAuth2Profile.getGrantType().getText();
+			OAuth2Flow oAuth2Flow = OAuth2Flow.valueOf(
+					oAuth2Profile.getGrantType().equals(GrantType.RESOURCE_OWNER_PASSWORD_CREDENTIALS)
+							? grantType : grantType + "_GRANT");
 
 			OAuth2Profile oAuth2ProfileSoapUI = project.getOAuth2ProfileContainer().addNewOAuth2Profile(oAuth2Profile.getProfileName());
 			oAuth2ProfileSoapUI.setOAuth2Flow(oAuth2Flow);

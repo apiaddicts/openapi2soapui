@@ -265,20 +265,20 @@ final class CliArgs {
 
 	private static final class Tokens {
 
-		private final List<String> tokens;
+		private final List<String> values;
 
 		private int index;
 
-		Tokens(List<String> tokens) {
-			this.tokens = tokens;
+		Tokens(List<String> values) {
+			this.values = values;
 		}
 
 		boolean hasNext() {
-			return index < tokens.size();
+			return index < values.size();
 		}
 
 		String next() {
-			return tokens.get(index++);
+			return values.get(index++);
 		}
 
 		String value(String option) {
