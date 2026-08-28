@@ -2,6 +2,7 @@ package org.apiaddicts.apitools.openapi2soapui.cli;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ final class CliArgs {
 
 	private static final String OUTPUT_FILE_SUFFIX = "-soapui-project.xml";
 
-	private static final Pattern UNSAFE_NAME_CHARS = Pattern.compile("[^A-Za-z0-9._-]+");
+	private static final Pattern UNSAFE_NAME_CHARS = Pattern.compile("[^\\p{L}\\p{N}._-]+");
 
 	private String specFile;
 	private String configFile;
@@ -64,7 +65,7 @@ final class CliArgs {
 				case "-H", "--header" -> parsed.headers.add(header(value(tokens, ++i, option)));
 				case "--server-pattern" -> parsed.serverPattern = value(tokens, ++i, option);
 				case "--test-case-names" -> parsed.testCaseNames = testCaseNames(value(tokens, ++i, option));
-				case "--number-of-scopes" -> parsed.numberOfScopes = integer(value(tokens, ++i, option), option);
+				case "--number-of-scopes" -> parsed.numberOfScopes = integer(rawValue(tokens, ++i, option), option);
 				case "--read-only" -> parsed.readOnly = Boolean.TRUE;
 				case "--minimal-endpoints" -> parsed.minimalEndpoints = Boolean.TRUE;
 				case "--microcks-headers" -> parsed.microcksHeaders = Boolean.TRUE;
@@ -96,12 +97,16 @@ final class CliArgs {
 	}
 
 	private static String value(List<String> tokens, int index, String option) {
-		if (index >= tokens.size()) throw new UsageException("option " + option + " requires a value");
-		String value = tokens.get(index);
+		String value = rawValue(tokens, index, option);
 		if (value.length() > 1 && value.startsWith("-")) {
 			throw new UsageException("option " + option + " requires a value, found " + value);
 		}
 		return value;
+	}
+
+	private static String rawValue(List<String> tokens, int index, String option) {
+		if (index >= tokens.size()) throw new UsageException("option " + option + " requires a value");
+		return tokens.get(index);
 	}
 
 	private static Header header(String value) {
@@ -160,7 +165,14 @@ final class CliArgs {
 	}
 
 	private static String readSpec(String path) throws IOException {
-		return Files.readString(requireFile(path, "OpenAPI").toPath());
+		String spec;
+		try {
+			spec = Files.readString(requireFile(path, "OpenAPI").toPath());
+		} catch (CharacterCodingException e) {
+			throw new IllegalArgumentException("OpenAPI file is not valid UTF-8: " + path);
+		}
+		if (spec.isBlank()) throw new IllegalArgumentException("OpenAPI file is empty: " + path);
+		return spec;
 	}
 
 	private static File requireFile(String path, String description) {
@@ -252,14 +264,6 @@ final class CliArgs {
 			Other:
 			  -h, --help                  Show this help
 			  -V, --version               Show the version
-
-			Exit codes: 0 success, 1 generation or validation error, 2 usage error
-
-			Examples:
-			  java -jar openapi2soapui-cli.jar -f petstore.yaml -o ./out
-			  java -jar openapi2soapui-cli.jar -f petstore.yaml -n Petstore --read-only
-			  java -jar openapi2soapui-cli.jar -c request.json -o petstore-project.xml
-			  java -jar openapi2soapui-cli.jar -c request.json -f petstore.yaml
 			""";
 	}
 
