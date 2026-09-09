@@ -9,6 +9,7 @@ import java.util.Properties;
 
 import io.swagger.v3.oas.models.OpenAPI;
 
+import org.apiaddicts.apitools.openapi2soapui.error.exceptions.APIVersionNotFoundException;
 import org.apiaddicts.apitools.openapi2soapui.model.SoapUIProject;
 import org.apiaddicts.apitools.openapi2soapui.request.SoapUIProjectRequest;
 import org.apiaddicts.apitools.openapi2soapui.util.SerializedDataUtils;
@@ -68,7 +69,7 @@ public final class Openapi2SoapUICli {
 
 		OpenAPI openAPI = SerializedDataUtils.parseOpenAPIContent(spec);
 		if (openAPI.getInfo() == null || openAPI.getInfo().getVersion() == null) {
-			return error("Version not found in OpenAPI");
+			throw new APIVersionNotFoundException("Version not found in OpenAPI");
 		}
 
 		if (request.getApiName() == null || request.getApiName().isBlank()) {
@@ -121,6 +122,10 @@ public final class Openapi2SoapUICli {
 	}
 
 	private static String describe(Throwable failure) {
+		return CliMessages.catalogued(failure).orElseGet(() -> rawMessage(failure));
+	}
+
+	private static String rawMessage(Throwable failure) {
 		String message = failure.getMessage();
 		if (message == null || message.isBlank()) return failure.getClass().getSimpleName();
 		return (failure instanceof Error) ? failure.getClass().getSimpleName() + ": " + message : message;

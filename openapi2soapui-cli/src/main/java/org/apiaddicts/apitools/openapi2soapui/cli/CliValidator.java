@@ -39,9 +39,7 @@ final class CliValidator {
 	private static String describe(ConstraintViolation<?> violation) {
 		String property = violation.getPropertyPath().toString();
 		property = JSON_NAMES.getOrDefault(property, property);
-		String message = violation.getMessage();
-		String[] parts = message.split("\\|", 2);
-		String text = (parts.length > 1) ? "[" + parts[0] + "] " + parts[1] : message;
+		String text = CliMessages.format(violation.getMessage());
 		return property.isEmpty() ? text : property + ": " + text;
 	}
 }

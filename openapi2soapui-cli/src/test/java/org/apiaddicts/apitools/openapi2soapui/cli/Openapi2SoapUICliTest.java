@@ -53,6 +53,20 @@ class Openapi2SoapUICliTest {
 			 "paths":{"/ping":{"get":{"responses":{"200":{"description":"ok"}}}}}}
 			""";
 
+	private static final String SPEC_WITHOUT_VERSION = """
+			openapi: 3.0.0
+			info:
+			  title: No Version
+			servers:
+			  - url: https://api.example.com/v1
+			paths:
+			  /ping:
+			    get:
+			      responses:
+			        '200':
+			          description: ok
+			""";
+
 	@TempDir
 	Path outputDir;
 
@@ -186,6 +200,50 @@ class Openapi2SoapUICliTest {
 
 		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-f", spec.toString(), "-o", outputDir.toString()));
 		assertTrue(stderr().contains("not valid UTF-8"), "unexpected stderr: " + stderr());
+	}
+
+	@Test
+	void reportsMalformedConfigJsonWithTheCataloguedMessage() throws Exception {
+		Path config = write("broken-config.json", "{\"apiName\": \"Broken\"");
+
+		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-c", config.toString(), "-o", outputDir.toString()));
+		assertTrue(stderr().contains("[1000] Malformed JSON request."), "unexpected stderr: " + stderr());
+	}
+
+	@Test
+	void reportsAnUnreadableOpenApiSpecInTheConfigWithTheCataloguedMessage() throws Exception {
+		Path config = write("bad-spec-config.json", "{\"openApiSpec\":\"not base64 at all!!\"}");
+
+		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-c", config.toString(), "-o", outputDir.toString()));
+		assertTrue(stderr().contains("[1100] The value of openApiSpec is not recognized."),
+				"unexpected stderr: " + stderr());
+	}
+
+	@Test
+	void reportsAnEmptyOpenApiSpecInTheConfigWithTheCataloguedMessage() throws Exception {
+		Path config = write("empty-spec-config.json", "{\"openApiSpec\":\"\"}");
+
+		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-c", config.toString(), "-o", outputDir.toString()));
+		assertTrue(stderr().contains("[1002] The openApiSpec attribute is required."),
+				"unexpected stderr: " + stderr());
+	}
+
+	@Test
+	void reportsASpecWithoutVersionWithTheCataloguedMessage() throws Exception {
+		Path spec = write("no-version.yaml", SPEC_WITHOUT_VERSION);
+
+		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-f", spec.toString(), "-o", outputDir.toString()));
+		assertTrue(stderr().contains("[1102] The version property was not found in the OpenAPI Spec."),
+				"unexpected stderr: " + stderr());
+	}
+
+	@Test
+	void reportsASpecWithInvalidSyntaxWithTheCataloguedMessage() throws Exception {
+		Path spec = write("invalid-syntax.json", "{\"openapi\":\"3.0.0\",\"info\":{\"title\":\"Broken\"");
+
+		assertEquals(Openapi2SoapUICli.EXIT_ERROR, run("-f", spec.toString(), "-o", outputDir.toString()));
+		assertTrue(stderr().contains("[1101] The openApiSpec format is not valid."),
+				"unexpected stderr: " + stderr());
 	}
 
 	@Test
