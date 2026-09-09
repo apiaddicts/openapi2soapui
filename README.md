@@ -319,6 +319,37 @@ $ java -jar openapi2soapui-cli.jar -f petstore-v2.yaml
 $ java -jar openapi2soapui-cli.jar -f petstore.json
 ```
 
+### Installing it as a standalone command
+
+The jar carries its own dependencies, so it runs on any machine with a Java 21 runtime: copy it over, no
+Maven and no checkout of this repository needed.
+
+```shell
+$ mvn clean package -DskipTests
+$ cp openapi2soapui-cli/target/openapi2soapui-cli.jar /opt/openapi2soapui/
+```
+
+To call it by name instead of typing the full `java -jar`, put a wrapper on the `PATH`. On Linux and macOS,
+save this as `/usr/local/bin/o2s` and make it executable with `chmod +x /usr/local/bin/o2s`.
+
+```shell
+#!/bin/sh
+exec java -jar /opt/openapi2soapui/openapi2soapui-cli.jar "$@"
+```
+
+On Windows, save this as `o2s.cmd` in any folder already on the `PATH`.
+
+```bat
+@echo off
+java -jar C:\openapi2soapui\openapi2soapui-cli.jar %*
+```
+
+The generation is then one word, with the same options as above.
+
+```shell
+$ o2s -f petstore.yaml -o ./projects
+```
+
 ## Files and Directories Structure
 
 The project directory has a particular directory structure. A representative project is shown below:
