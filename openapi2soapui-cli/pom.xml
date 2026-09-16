@@ -3,7 +3,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>net.cloudappi</groupId>
+		<groupId>org.apiaddicts.apitools.openapi2soapui</groupId>
 		<artifactId>openapi2soapui</artifactId>
 		<version>2.1.0</version>
 		<relativePath>../pom.xml</relativePath>
@@ -14,6 +14,25 @@
 
 	<name>openapi2soapui-cli</name>
 	<description>Openapi to SoapUI Project - command line interface</description>
+	<url>https://github.com/apiaddicts/openapi2soapui</url>
+
+	<licenses>
+		<license>
+			<name>GNU Lesser General Public License (LGPLV3+)</name>
+			<url>http://www.gnu.org/licenses/lgpl-3.0.html</url>
+		</license>
+	</licenses>
+
+	<organization>
+		<name>Apiaddicts</name>
+		<url>https://apiaddicts.org</url>
+	</organization>
+
+	<scm>
+		<connection>scm:git:git://github.com/apiaddicts/openapi2soapui.git</connection>
+		<developerConnection>scm:git:ssh://github.com:apiaddicts/openapi2soapui.git</developerConnection>
+		<url>https://github.com/apiaddicts/openapi2soapui/tree/master</url>
+	</scm>
 
 	<build>
 		<finalName>openapi2soapui-cli</finalName>
@@ -49,7 +68,7 @@
 	<dependencies>
 
 		<dependency>
-			<groupId>net.cloudappi</groupId>
+			<groupId>org.apiaddicts.apitools.openapi2soapui</groupId>
 			<artifactId>openapi2soapui-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
