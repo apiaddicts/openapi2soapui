@@ -5,14 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 ## [2.1.0] - 2026-09-16
 
 ### Added
+- GitHub Actions workflow (`.github/workflows/maven.yml`) building and testing on JDK 21 for pushes/PRs against `main` and `develop`.
+- Maven Central publishing setup: `distributionManagement`, `central-publishing-maven-plugin`, `maven-source-plugin`, `maven-javadoc-plugin`, and a `release` profile that signs artifacts with `maven-gpg-plugin`. `openapi2soapui` (parent), `openapi2soapui-core` and `openapi2soapui-cli` are published (the CLI needs `core` on Central to resolve, and publishing the CLI itself lets it be pulled directly from Central); `openapi2soapui-rest` opts out of deploy (`maven.deploy.skip=true`) since it's a runnable service, not a library.
 - **Command line interface** (`openapi2soapui-cli.jar`): generates a SoapUI project from an OpenAPI spec without starting the service, `java -jar openapi2soapui-cli.jar -f petstore.yaml`. Same engine, request model and validations as the HTTP endpoint, so both produce identical projects.
 - Input with `-f` (spec as plain JSON or YAML) or `-c` (the same JSON body the REST API takes, `openApiSpec` base64 encoded), output with `-o` (folder, or a path ending in `.xml`, default `./out`), plus `-n`, `-H`, `--server-pattern`, `--test-case-names`, `--number-of-scopes`, `--read-only`, `--minimal-endpoints`, `--microcks-headers`, `--generate-one-of-any-of`, `--schema-is-inline`, `--is-inline`, `--has-scopes`, `--application-token`, `--no-validate-schema`, `--no-schema-pretty-print`, `-h` and `-V`. Defaults match the HTTP API.
 
 ### Changed
 - Split into `openapi2soapui-core`, `openapi2soapui-rest` and `openapi2soapui-cli`. The service keeps its artifact file name, but its Maven coordinates become `net.cloudappi:openapi2soapui-rest`.
+- **Breaking:** Maven `groupId` changed from `net.cloudappi` to `org.apiaddicts.apitools.openapi2soapui` across all modules, to publish under the already-verified `apiaddicts` namespace on Sonatype Central (matches `apigen.springboot` and `sonaropenapi-rules`).
 
 ## [2.1.0-beta-1] - 2026-08-28
 
