@@ -4,6 +4,6 @@ services:
     build:
       context: .
       args:
-        JAR_FILE: "target/openapi2soapui.jar"
+        JAR_FILE: "openapi2soapui-rest/target/openapi2soapui.jar"
     ports:
       - "8080:8080"
